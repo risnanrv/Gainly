@@ -20,6 +20,8 @@ function AddFoodContent() {
   const [quantity, setQuantity] = useState<string>("");
   const [isScanning, setIsScanning] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isBarcodeLoading, setIsBarcodeLoading] = useState(false);
   const [barcodeQuery, setBarcodeQuery] = useState("");
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
@@ -88,6 +90,7 @@ function AddFoodContent() {
 
   const handleBarcodeSearch = async (query: string) => {
     if (!query) return;
+    setIsBarcodeLoading(true);
     try {
       const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${query}.json`);
       const data = await res.json();
@@ -104,16 +107,22 @@ function AddFoodContent() {
         toast.success("Found via Barcode!");
         stopScanner();
       } else {
-        toast.error("Product not found. Try custom entry.");
+        toast.error("Could not fetch data. Try manual entry.");
       }
     } catch {
-      toast.error("Network error scanning barcode");
+      toast.error("Network error scanning barcode. Try manual entry.");
     } finally {
+      setIsBarcodeLoading(false);
       setBarcodeQuery("");
     }
   };
 
   const startScanner = async () => {
+    setCameraError(null);
+    if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+       setCameraError("Camera requires HTTPS connection.");
+       return;
+    }
     setScannerActive(true);
     try {
       if (!scannerRef.current) {
@@ -131,7 +140,7 @@ function AddFoodContent() {
         }
       );
     } catch (err) {
-      toast.error("Camera permission denied or unavailable.");
+      setCameraError("Camera Permission Denied or Unavailable.");
       setScannerActive(false);
     }
   };
@@ -141,6 +150,7 @@ function AddFoodContent() {
       await scannerRef.current.stop();
     }
     setScannerActive(false);
+    setCameraError(null);
   };
 
   // Ensure scanner stops if we leave scanning mode
@@ -169,29 +179,50 @@ function AddFoodContent() {
           <div className="mb-4 animate-in fade-in slide-in-from-top-2">
             {!scannerActive ? (
               <div className="bg-surface border border-white/5 p-4 rounded-3xl mb-3 flex flex-col items-center justify-center gap-3">
-                <button onClick={startScanner} className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 active:scale-95 transition-colors">
-                  <Camera className="w-7 h-7" />
-                </button>
-                <p className="text-xs uppercase text-muted font-bold tracking-wider">Tap to open Camera</p>
+                {cameraError ? (
+                   <div className="text-center">
+                      <p className="text-red-400 text-xs font-bold mb-3">{cameraError}</p>
+                      <button onClick={startScanner} className="px-4 py-2 bg-white/10 rounded-xl text-xs font-bold active:scale-95">Retry Camera</button>
+                   </div>
+                ) : (
+                  <>
+                    <button onClick={startScanner} className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 active:scale-95 transition-colors">
+                      <Camera className="w-7 h-7" />
+                    </button>
+                    <p className="text-xs uppercase text-muted font-bold tracking-wider">Tap to open Camera</p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="bg-surface border border-white/5 p-2 rounded-3xl mb-3 overflow-hidden relative">
+                {isBarcodeLoading && (
+                   <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center backdrop-blur-sm">
+                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                   </div>
+                )}
                 <div id="reader" className="w-full rounded-2xl overflow-hidden aspect-video bg-black flex items-center justify-center" />
-                <button onClick={stopScanner} className="absolute top-4 right-4 bg-black/50 backdrop-blur-md p-1.5 rounded-full text-white">
+                <button onClick={stopScanner} className="absolute top-4 right-4 bg-black/50 backdrop-blur-md p-1.5 rounded-full text-white z-20">
                   <X className="w-4 h-4" />
                 </button>
               </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 relative">
               <input
                 type="text"
-                placeholder="Or enter barcode numbers naturally..."
+                placeholder="Enter barcode numbers manually..."
                 value={barcodeQuery}
                 onChange={e => setBarcodeQuery(e.target.value)}
                 className="w-full bg-background border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                disabled={isBarcodeLoading}
               />
-              <button onClick={() => handleBarcodeSearch(barcodeQuery)} className="px-4 bg-primary text-background rounded-xl font-bold text-sm shrink-0">Search</button>
+              <button 
+                disabled={isBarcodeLoading}
+                onClick={() => handleBarcodeSearch(barcodeQuery)} 
+                className="px-4 bg-primary text-background rounded-xl font-bold text-sm shrink-0 disabled:opacity-50"
+              >
+                {isBarcodeLoading ? '...' : 'Search'}
+              </button>
             </div>
           </div>
         ) : (

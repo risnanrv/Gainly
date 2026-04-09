@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import BottomNav from "@/components/BottomNav";
 import { Toaster } from "sonner";
 import { NotificationManager } from "@/components/NotificationManager";
+import AuthWrapper from "@/components/AuthWrapper";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -24,11 +25,13 @@ export default function RootLayout({
       <body className={`${inter.className} bg-background text-foreground h-[100dvh] overflow-hidden`}>
         <NotificationManager />
         <div className="mx-auto flex flex-col h-[100dvh] max-w-md border-x border-white/5 bg-background shadow-2xl relative shadow-primary/5">
-          {/* Main Scrollable Area */}
-          <main className="flex-1 overflow-y-auto pb-20 no-scrollbar relative z-10">
-            {children}
-          </main>
-          <BottomNav />
+          <AuthWrapper>
+            {/* Main Scrollable Area */}
+            <main className="flex-1 overflow-y-auto pb-20 no-scrollbar relative z-10">
+              {children}
+            </main>
+            <BottomNav />
+          </AuthWrapper>
           <Toaster theme="dark" toastOptions={{ className: 'bg-surface border-white/10 text-foreground' }} position="top-center" />
         </div>
       </body>

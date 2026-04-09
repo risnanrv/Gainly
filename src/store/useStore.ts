@@ -53,6 +53,13 @@ export interface FoodEntryDB {
   timestamp: number;
 }
 
+export interface UserAuth {
+  isAuthenticated: boolean;
+  name?: string;
+  email?: string;
+  age?: number;
+}
+
 interface AppState {
   targetCalories: number;
   targetProtein: number;
@@ -62,9 +69,12 @@ interface AppState {
   expenseCategories: ExpenseCategory[];
   customFoods: FoodEntryDB[];
   profile: UserProfile;
+  auth: UserAuth;
   reminders: Reminders;
   setTargets: (calories: number, protein: number) => void;
   updateProfile: (profile: Partial<UserProfile>) => void;
+  updateAuth: (auth: Partial<UserAuth>) => void;
+  logout: () => void;
   updateReminders: (reminders: Partial<Reminders>) => void;
   addFood: (date: string, entry: Omit<FoodEntry, "id" | "timestamp">) => void;
   removeFood: (date: string, id: string) => void;
@@ -101,6 +111,9 @@ export const useStore = create<AppState>()(
         targetWeight: 75,
         weeks: 12,
       },
+      auth: {
+        isAuthenticated: false,
+      },
       reminders: {
         dailySummary: false,
       },
@@ -108,6 +121,9 @@ export const useStore = create<AppState>()(
         set({ targetCalories: calories, targetProtein: protein }),
       updateProfile: (updates) =>
         set((state) => ({ profile: { ...state.profile, ...updates } })),
+      updateAuth: (updates) =>
+        set((state) => ({ auth: { ...state.auth, ...updates } })),
+      logout: () => set({ auth: { isAuthenticated: false } }),
       updateReminders: (updates) =>
         set((state) => ({ reminders: { ...state.reminders, ...updates } })),
       
