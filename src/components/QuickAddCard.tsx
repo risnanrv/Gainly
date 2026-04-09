@@ -14,7 +14,7 @@ export function QuickAddCard({ foodName }: { foodName: string }) {
   const addFood = useStore((state) => state.addFood);
   const foodItem = foodDB.find((f) => f.name === foodName);
 
-  const timerRef = useRef<NodeJS.Timeout>();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
 
   if (!foodItem) return null;
