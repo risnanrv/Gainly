@@ -95,7 +95,7 @@ function AddFoodContent() {
         const nut = data.product.nutriments;
         const newFood = {
           name: data.product.product_name || "Unknown Product",
-          unit: "grams",
+          unit: "grams" as const,
           calories_per_100g: nut["energy-kcal_100g"] || 0,
           protein_per_100g: nut["proteins_100g"] || 0,
         };
