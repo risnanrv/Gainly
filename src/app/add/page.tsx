@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense, useRef } from "react";
-import { useStore } from "@/store/useStore";
+import { FoodEntryDB, useStore } from "@/store/useStore";
 import { getToday } from "@/lib/dateUtils";
 import foodDB from "@/data/foods.json";
 import { Search, ChevronRight, X, Clock, Repeat, Barcode, Plus, Camera } from "lucide-react";
@@ -36,7 +36,7 @@ function AddFoodContent() {
   const freqMap: Record<string, number> = {};
   Object.values(logs).forEach(day => {
     day.entries.forEach(e => {
-        freqMap[e.name] = (freqMap[e.name] || 0) + 1;
+      freqMap[e.name] = (freqMap[e.name] || 0) + 1;
     });
   });
 
@@ -52,7 +52,7 @@ function AddFoodContent() {
     }
   }, [initialFood]);
 
-  const filteredFoods = search 
+  const filteredFoods = search
     ? fullDB.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()))
     : fullDB;
 
@@ -93,9 +93,9 @@ function AddFoodContent() {
       const data = await res.json();
       if (data.status === 1 && data.product) {
         const nut = data.product.nutriments;
-        const newFood = {
+        const newFood: Omit<FoodEntryDB, "id" | "timestamp"> = {
           name: data.product.product_name || "Unknown Product",
-          unit: "grams" as const,
+          unit: "grams",
           calories_per_100g: nut["energy-kcal_100g"] || 0,
           protein_per_100g: nut["proteins_100g"] || 0,
         };
@@ -117,17 +117,17 @@ function AddFoodContent() {
     setScannerActive(true);
     try {
       if (!scannerRef.current) {
-         scannerRef.current = new Html5Qrcode("reader");
+        scannerRef.current = new Html5Qrcode("reader");
       }
       await scannerRef.current.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 150 } },
         (decodedText) => {
-           // Successfully decoded
-           handleBarcodeSearch(decodedText);
+          // Successfully decoded
+          handleBarcodeSearch(decodedText);
         },
         () => {
-           // Ignore errors
+          // Ignore errors
         }
       );
     } catch (err) {
@@ -138,62 +138,62 @@ function AddFoodContent() {
 
   const stopScanner = async () => {
     if (scannerRef.current && scannerRef.current.isScanning) {
-       await scannerRef.current.stop();
+      await scannerRef.current.stop();
     }
     setScannerActive(false);
   };
 
   // Ensure scanner stops if we leave scanning mode
   useEffect(() => {
-     if (!isScanning) {
-        stopScanner();
-     }
+    if (!isScanning) {
+      stopScanner();
+    }
   }, [isScanning]);
 
   return (
     <div className="p-6 h-full flex flex-col relative animate-in fade-in duration-500 pb-safe">
       <header className="pt-4 pb-4">
         <div className="flex justify-between items-center mb-4">
-           <h1 className="text-2xl font-bold tracking-tight">Add Food</h1>
-           <div className="flex gap-2">
-             <button onClick={() => router.push('/foods')} className="h-10 px-3 rounded-xl bg-surface/50 border border-white/5 flex items-center justify-center text-xs font-semibold uppercase tracking-wider text-muted active:scale-95">
-                Food DB
-             </button>
-             <button onClick={() => setIsScanning(!isScanning)} className={`w-10 h-10 rounded-xl border flex items-center justify-center active:scale-95 transition-colors ${isScanning ? 'bg-primary border-primary text-background' : 'bg-surface/50 border-white/5 text-muted'}`}>
-                <Barcode className="w-5 h-5" />
-             </button>
-           </div>
+          <h1 className="text-2xl font-bold tracking-tight">Add Food</h1>
+          <div className="flex gap-2">
+            <button onClick={() => router.push('/foods')} className="h-10 px-3 rounded-xl bg-surface/50 border border-white/5 flex items-center justify-center text-xs font-semibold uppercase tracking-wider text-muted active:scale-95">
+              Food DB
+            </button>
+            <button onClick={() => setIsScanning(!isScanning)} className={`w-10 h-10 rounded-xl border flex items-center justify-center active:scale-95 transition-colors ${isScanning ? 'bg-primary border-primary text-background' : 'bg-surface/50 border-white/5 text-muted'}`}>
+              <Barcode className="w-5 h-5" />
+            </button>
+          </div>
         </div>
-        
+
         {isScanning ? (
-           <div className="mb-4 animate-in fade-in slide-in-from-top-2">
-              {!scannerActive ? (
-                 <div className="bg-surface border border-white/5 p-4 rounded-3xl mb-3 flex flex-col items-center justify-center gap-3">
-                   <button onClick={startScanner} className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 active:scale-95 transition-colors">
-                      <Camera className="w-7 h-7" />
-                   </button>
-                   <p className="text-xs uppercase text-muted font-bold tracking-wider">Tap to open Camera</p>
-                 </div>
-              ) : (
-                 <div className="bg-surface border border-white/5 p-2 rounded-3xl mb-3 overflow-hidden relative">
-                    <div id="reader" className="w-full rounded-2xl overflow-hidden aspect-video bg-black flex items-center justify-center" />
-                    <button onClick={stopScanner} className="absolute top-4 right-4 bg-black/50 backdrop-blur-md p-1.5 rounded-full text-white">
-                      <X className="w-4 h-4"/>
-                    </button>
-                 </div>
-              )}
-              
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="Or enter barcode numbers naturally..." 
-                  value={barcodeQuery}
-                  onChange={e => setBarcodeQuery(e.target.value)}
-                  className="w-full bg-background border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
-                <button onClick={() => handleBarcodeSearch(barcodeQuery)} className="px-4 bg-primary text-background rounded-xl font-bold text-sm shrink-0">Search</button>
+          <div className="mb-4 animate-in fade-in slide-in-from-top-2">
+            {!scannerActive ? (
+              <div className="bg-surface border border-white/5 p-4 rounded-3xl mb-3 flex flex-col items-center justify-center gap-3">
+                <button onClick={startScanner} className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 active:scale-95 transition-colors">
+                  <Camera className="w-7 h-7" />
+                </button>
+                <p className="text-xs uppercase text-muted font-bold tracking-wider">Tap to open Camera</p>
               </div>
-           </div>
+            ) : (
+              <div className="bg-surface border border-white/5 p-2 rounded-3xl mb-3 overflow-hidden relative">
+                <div id="reader" className="w-full rounded-2xl overflow-hidden aspect-video bg-black flex items-center justify-center" />
+                <button onClick={stopScanner} className="absolute top-4 right-4 bg-black/50 backdrop-blur-md p-1.5 rounded-full text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Or enter barcode numbers naturally..."
+                value={barcodeQuery}
+                onChange={e => setBarcodeQuery(e.target.value)}
+                className="w-full bg-background border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+              <button onClick={() => handleBarcodeSearch(barcodeQuery)} className="px-4 bg-primary text-background rounded-xl font-bold text-sm shrink-0">Search</button>
+            </div>
+          </div>
         ) : (
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted w-5 h-5" />
@@ -228,19 +228,19 @@ function AddFoodContent() {
         )}
 
         <div className="flex justify-between items-end mb-2 mt-4">
-           <h3 className="text-xs font-semibold text-muted tracking-widest uppercase">
-             {search ? "Results" : "Database"}
-           </h3>
-           {search && filteredFoods.length === 0 && (
-              <button 
-                onClick={() => {
-                  setSelectedFood({ name: search, unit: "grams", calories_per_100g: 0, protein_per_100g: 0 });
-                }}
-                className="text-xs text-primary font-bold flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" /> Custom Input
-              </button>
-           )}
+          <h3 className="text-xs font-semibold text-muted tracking-widest uppercase">
+            {search ? "Results" : "Database"}
+          </h3>
+          {search && filteredFoods.length === 0 && (
+            <button
+              onClick={() => {
+                setSelectedFood({ name: search, unit: "grams", calories_per_100g: 0, protein_per_100g: 0 });
+              }}
+              className="text-xs text-primary font-bold flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" /> Custom Input
+            </button>
+          )}
         </div>
 
         {filteredFoods.map((food) => (
@@ -280,7 +280,7 @@ function AddFoodContent() {
               className="absolute bottom-0 left-0 right-0 bg-surface border-t border-white/10 p-6 rounded-t-[32px] z-50 pb-safe shadow-[0_-20px_40px_rgba(0,0,0,0.5)]"
             >
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
-              
+
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h2 className="text-2xl font-bold">{selectedFood.name}</h2>
@@ -298,10 +298,10 @@ function AddFoodContent() {
 
               {/* If it's a completely new custom food, let them edit calories and protein directly before saving */}
               {selectedFood.calories_per_100g === 0 && selectedFood.calories_per_unit === undefined && (
-                 <div className="flex gap-2 mb-4 bg-white/5 p-3 rounded-xl border border-white/5">
-                    <input type="number" placeholder="Kcal per 100g" className="w-1/2 bg-background py-2 px-3 rounded-lg text-sm text-center" onChange={e => setSelectedFood({...selectedFood, calories_per_100g: Number(e.target.value)})} />
-                    <input type="number" placeholder="Protein per 100g" className="w-1/2 bg-background py-2 px-3 rounded-lg text-sm text-center" onChange={e => setSelectedFood({...selectedFood, protein_per_100g: Number(e.target.value)})} />
-                 </div>
+                <div className="flex gap-2 mb-4 bg-white/5 p-3 rounded-xl border border-white/5">
+                  <input type="number" placeholder="Kcal per 100g" className="w-1/2 bg-background py-2 px-3 rounded-lg text-sm text-center" onChange={e => setSelectedFood({ ...selectedFood, calories_per_100g: Number(e.target.value) })} />
+                  <input type="number" placeholder="Protein per 100g" className="w-1/2 bg-background py-2 px-3 rounded-lg text-sm text-center" onChange={e => setSelectedFood({ ...selectedFood, protein_per_100g: Number(e.target.value) })} />
+                </div>
               )}
 
               <div className="relative mb-6">
@@ -334,7 +334,7 @@ function AddFoodContent() {
               <button
                 onClick={() => {
                   if (selectedFood.calories_per_100g === 0 && selectedFood.protein_per_100g > 0) {
-                      addCustomFood(selectedFood);
+                    addCustomFood(selectedFood);
                   }
                   handleAdd();
                 }}
