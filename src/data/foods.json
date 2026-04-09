@@ -1,0 +1,15 @@
+[
+  { "name": "Egg", "unit": "count", "calories_per_unit": 70, "protein_per_unit": 6 },
+  { "name": "Banana", "unit": "count", "calories_per_unit": 90, "protein_per_unit": 1 },
+  { "name": "Rice", "unit": "grams", "calories_per_100g": 130, "protein_per_100g": 2.5 },
+  { "name": "Soya Chunks", "unit": "grams", "calories_per_100g": 345, "protein_per_100g": 52 },
+  { "name": "Peanuts", "unit": "grams", "calories_per_100g": 567, "protein_per_100g": 26 },
+  { "name": "Milk", "unit": "grams", "calories_per_100g": 60, "protein_per_100g": 3.2 },
+  { "name": "Puttu", "unit": "count", "calories_per_unit": 330, "protein_per_unit": 6 },
+  { "name": "Dosa", "unit": "count", "calories_per_unit": 120, "protein_per_unit": 3 },
+  { "name": "Fish Curry", "unit": "grams", "calories_per_100g": 110, "protein_per_100g": 15 },
+  { "name": "Sweet Potato", "unit": "grams", "calories_per_100g": 86, "protein_per_100g": 1.6 },
+  { "name": "Cherupayar (Green Gram)", "unit": "grams", "calories_per_100g": 347, "protein_per_100g": 24 },
+  { "name": "Muthira (Horse Gram)", "unit": "grams", "calories_per_100g": 321, "protein_per_100g": 22 },
+  { "name": "Payar (Cowpea)", "unit": "grams", "calories_per_100g": 336, "protein_per_100g": 23 }
+]
