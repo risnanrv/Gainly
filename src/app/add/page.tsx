@@ -95,9 +95,9 @@ function AddFoodContent() {
       const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${query}.json`);
       const data = await res.json();
       if (data.status === 1 && data.product) {
-        const nut = data.product.nutriments;
+        const nut = data.product.nutriments || {};
         const newFood: Omit<FoodEntryDB, "id" | "timestamp"> = {
-          name: data.product.product_name || "Unknown Product",
+          name: data.product.product_name || `Barcode ${query}`,
           unit: "grams",
           calories_per_100g: nut["energy-kcal_100g"] || 0,
           protein_per_100g: nut["proteins_100g"] || 0,
@@ -107,10 +107,14 @@ function AddFoodContent() {
         toast.success("Found via Barcode!");
         stopScanner();
       } else {
-        toast.error("Could not fetch data. Try manual entry.");
+        toast.error("Product not found. Add manually.");
+        setSelectedFood({ name: `Barcode ${query}`, unit: "grams", calories_per_100g: 0, protein_per_100g: 0 });
+        stopScanner();
       }
     } catch {
-      toast.error("Network error scanning barcode. Try manual entry.");
+      toast.error("Network error. Try manual entry.");
+      setSelectedFood({ name: `Barcode ${query}`, unit: "grams", calories_per_100g: 0, protein_per_100g: 0 });
+      stopScanner();
     } finally {
       setIsBarcodeLoading(false);
       setBarcodeQuery("");
@@ -119,28 +123,44 @@ function AddFoodContent() {
 
   const startScanner = async () => {
     setCameraError(null);
-    if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
-       setCameraError("Camera requires HTTPS connection.");
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+       setCameraError("Camera not supported (HTTPS required).");
        return;
     }
+    
     setScannerActive(true);
     try {
+      // Explicitly request permission first to catch errors like permission denied cleanly
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      // Stop stream immediately as Html5Qrcode handles its own stream
+      stream.getTracks().forEach(track => track.stop());
+
       if (!scannerRef.current) {
         scannerRef.current = new Html5Qrcode("reader");
       }
+      
       await scannerRef.current.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 150 } },
         (decodedText) => {
-          // Successfully decoded
-          handleBarcodeSearch(decodedText);
+          if (!isBarcodeLoading) {
+            handleBarcodeSearch(decodedText);
+          }
         },
         () => {
-          // Ignore errors
+          // Ignore scanning errors (noisy)
         }
       );
-    } catch (err) {
-      setCameraError("Camera Permission Denied or Unavailable.");
+    } catch (err: any) {
+      console.error("Camera Error:", err);
+      // Detailed error states
+      if (err.name === 'NotAllowedError' || err.message?.includes('Permission denied')) {
+        setCameraError("Camera permission denied. Please allow camera access in your browser settings.");
+      } else if (err.name === 'NotFoundError' || err.message?.includes('Requested device not found')) {
+        setCameraError("No camera found on this device.");
+      } else {
+        setCameraError("Camera unavailable. " + (err.message || "Unknown error."));
+      }
       setScannerActive(false);
     }
   };
@@ -313,15 +333,25 @@ function AddFoodContent() {
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6" />
 
               <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold">{selectedFood.name}</h2>
+                <div className="w-full mr-4">
+                  {selectedFood.calories_per_100g === 0 && selectedFood.calories_per_unit === undefined ? (
+                    <input
+                      type="text"
+                      value={selectedFood.name}
+                      onChange={(e) => setSelectedFood({ ...selectedFood, name: e.target.value })}
+                      className="w-full bg-background border border-white/10 rounded-xl py-2 px-3 text-xl font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 mb-1"
+                      placeholder="Enter food name"
+                    />
+                  ) : (
+                    <h2 className="text-2xl font-bold">{selectedFood.name}</h2>
+                  )}
                   <p className="text-muted text-sm mt-1">
                     Enter quantity in {selectedFood.unit === "count" ? "units" : "grams"}
                   </p>
                 </div>
                 <button
                   onClick={() => setSelectedFood(null)}
-                  className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center p-1"
+                  className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center p-1 shrink-0 mt-1"
                 >
                   <X className="w-4 h-4 text-muted" />
                 </button>
@@ -330,8 +360,8 @@ function AddFoodContent() {
               {/* If it's a completely new custom food, let them edit calories and protein directly before saving */}
               {selectedFood.calories_per_100g === 0 && selectedFood.calories_per_unit === undefined && (
                 <div className="flex gap-2 mb-4 bg-white/5 p-3 rounded-xl border border-white/5">
-                  <input type="number" placeholder="Kcal per 100g" className="w-1/2 bg-background py-2 px-3 rounded-lg text-sm text-center" onChange={e => setSelectedFood({ ...selectedFood, calories_per_100g: Number(e.target.value) })} />
-                  <input type="number" placeholder="Protein per 100g" className="w-1/2 bg-background py-2 px-3 rounded-lg text-sm text-center" onChange={e => setSelectedFood({ ...selectedFood, protein_per_100g: Number(e.target.value) })} />
+                  <input type="number" placeholder="Kcal per 100g" className="w-1/2 bg-background border border-white/10 py-2 px-3 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/50" onChange={e => setSelectedFood({ ...selectedFood, calories_per_100g: Number(e.target.value) })} />
+                  <input type="number" placeholder="Protein per 100g" className="w-1/2 bg-background border border-white/10 py-2 px-3 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/50" onChange={e => setSelectedFood({ ...selectedFood, protein_per_100g: Number(e.target.value) })} />
                 </div>
               )}
 
