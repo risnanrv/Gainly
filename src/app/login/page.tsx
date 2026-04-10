@@ -50,7 +50,7 @@ function LoginContent() {
       setStep("check_email");
     }
   };
-  const handleSignup = async (e: React.FormEvent) => {
+    const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -77,7 +77,8 @@ function LoginContent() {
       ]);
 
     if (error) {
-      toast.error("Failed to create profile...");
+      console.error(error);
+      toast.error(error.message || "Failed to create profile...");
       setLoading(false);
       return;
     }
@@ -211,55 +212,76 @@ function LoginContent() {
             <h2 className="text-3xl font-black mb-2 self-start">Almost there</h2>
             <p className="text-sm text-muted mb-8 self-start">Let's set up your fitness profile.</p>
 
-            <form onSubmit={handleSignup} className="w-full space-y-4">
-              <input
-                type="text"
-                required
-                placeholder="Full Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="number"
-                  placeholder="Age (Optional)"
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
-                />
+            <form onSubmit={handleSignup} className="w-full space-y-5">
+              <div>
+                <label className="text-xs font-bold text-muted uppercase tracking-wider mb-1.5 block px-1">Full Name *</label>
                 <input
                   type="text"
-                  placeholder="Gender (Optional)"
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
+                  required
+                  placeholder="e.g. John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/40"
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="number"
-                  placeholder="Height cm (Optional)"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value)}
-                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
-                />
-                <input
-                  type="number"
-                  required
-                  placeholder="Weight (kg)"
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
-                />
+                <div>
+                  <label className="text-xs font-bold text-muted uppercase tracking-wider mb-1.5 block px-1">Age</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="120"
+                    placeholder="e.g. 25"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    className="w-full bg-surface/50 border border-white/10 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-muted uppercase tracking-wider mb-1.5 block px-1">Gender</label>
+                  <div className="flex bg-surface/50 border border-white/10 rounded-2xl p-1">
+                     <button type="button" onClick={() => setGender("Male")} className={`flex-1 text-[11px] font-bold py-2 rounded-xl transition-colors ${gender === "Male" ? "bg-primary text-background" : "text-muted hover:text-white"}`}>Male</button>
+                     <button type="button" onClick={() => setGender("Female")} className={`flex-1 text-[11px] font-bold py-2 rounded-xl transition-colors ${gender === "Female" ? "bg-primary text-background" : "text-muted hover:text-white"}`}>Female</button>
+                     <button type="button" onClick={() => setGender("Other")} className={`flex-1 text-[11px] font-bold py-2 rounded-xl transition-colors ${gender === "Other" ? "bg-primary text-background" : "text-muted hover:text-white"}`}>Other</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-muted uppercase tracking-wider mb-1.5 block px-1">Height (cm)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.1"
+                    placeholder="e.g. 175"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    className="w-full bg-surface/50 border border-white/10 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-muted uppercase tracking-wider mb-1.5 block px-1">Weight (kg) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    step="0.1"
+                    placeholder="e.g. 70.5"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    className="w-full bg-surface/50 border border-white/10 rounded-2xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/40"
+                  />
+                </div>
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 mt-4 rounded-2xl bg-primary text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50"
+                className="w-full py-4 mt-6 rounded-2xl bg-primary text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50"
               >
-                {loading ? "Creating profile..." : "Complete Setup"}
+                {loading ? "Creating Profile..." : "Complete Setup"}
               </button>
             </form>
           </motion.div>
