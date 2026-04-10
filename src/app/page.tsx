@@ -79,22 +79,6 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    const getSession = async () => {
-      const { data } = await supabase.auth.getSession();
-
-      if (data.session) {
-        const user = data.session.user;
-
-        updateAuth({
-          isAuthenticated: true,
-          email: user.email,
-        });
-      }
-    };
-
-    getSession();
-  }, []);
   return (
     <div className="p-6 space-y-8 animate-in fade-in duration-500 overflow-y-auto pb-safe">
       <header className="flex justify-between items-start pt-4">
@@ -173,8 +157,5 @@ export default function Home() {
       </section>
     </div>
   );
-}
-function updateAuth(arg0: { isAuthenticated: boolean; email: string | undefined; }) {
-  throw new Error("Function not implemented.");
 }
 

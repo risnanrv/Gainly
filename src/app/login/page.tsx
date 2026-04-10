@@ -37,7 +37,7 @@ function LoginContent() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: "https://gainly-seven.vercel.app", // ✅ correct
+        emailRedirectTo: "https://gainly-seven.vercel.app/auth/callback",
       },
     });
 
@@ -97,7 +97,7 @@ function LoginContent() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "https://gainly-seven.vercel.app", // ✅ FIXED (quotes added)
+        redirectTo: "https://gainly-seven.vercel.app/auth/callback",
       },
     });
 
