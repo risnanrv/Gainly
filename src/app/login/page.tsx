@@ -15,89 +15,92 @@ function LoginContent() {
   const [gender, setGender] = useState("");
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
-  
+
   const [loading, setLoading] = useState(false);
-  
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const { updateAuth, updateProfile } = useStore();
 
   useEffect(() => {
     if (searchParams.get("setup") === "true") {
-       setStep("signup");
+      setStep("signup");
     }
   }, [searchParams]);
 
   const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
+
     setLoading(true);
-    
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: 'https://gainly-seven.vercel.app',
-      }
+        emailRedirectTo: "https://gainly-seven.vercel.app", // ✅ correct
+      },
     });
-    
+
     setLoading(false);
-    
+
     if (error) {
       toast.error(error.message);
     } else {
+      toast.success("Check your email to login");
       setStep("check_email");
     }
   };
-
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-       toast.error("Auth session lost. Please login again.");
-       setStep("login");
-       setLoading(false);
-       return;
+      toast.error("Auth session lost. Please login again.");
+      setStep("login");
+      setLoading(false);
+      return;
     }
 
     const { error } = await supabase
-       .from('profiles')
-       .insert([
-         { 
-           id: user.id, 
-           name, 
-           age: age ? Number(age) : null,
-           gender: gender || null,
-           height: height ? Number(height) : null,
-           startingWeight: weight ? Number(weight) : null,
-           currentWeight: weight ? Number(weight) : null,
-         }
-       ]);
-       
+      .from('profiles')
+      .insert([
+        {
+          id: user.id,
+          name,
+          age: age ? Number(age) : null,
+          gender: gender || null,
+          height: height ? Number(height) : null,
+          startingWeight: weight ? Number(weight) : null,
+          currentWeight: weight ? Number(weight) : null,
+        }
+      ]);
+
     if (error) {
-       toast.error("Failed to create profile...");
-       setLoading(false);
-       return;
+      toast.error("Failed to create profile...");
+      setLoading(false);
+      return;
     }
-    
+
     updateAuth({ isAuthenticated: true, email: user.email, name, age: age ? Number(age) : undefined });
     if (weight) {
-       updateProfile({ startingWeight: Number(weight), currentWeight: Number(weight) });
+      updateProfile({ startingWeight: Number(weight), currentWeight: Number(weight) });
     }
-    
+
     toast.success("Account created successfully!");
     router.push("/");
   };
 
   const loginWithGoogle = async () => {
     setLoading(true);
+
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider: "google",
       options: {
-        redirectTo: `https://gainly-seven.vercel.app`
-      }
+        redirectTo: "https://gainly-seven.vercel.app", // ✅ FIXED (quotes added)
+      },
     });
+
     if (error) {
       toast.error(error.message);
       setLoading(false);
@@ -122,7 +125,7 @@ function LoginContent() {
             <div className="w-20 h-20 rounded-3xl overflow-hidden shadow-2xl shadow-primary/30 mb-8 border border-white/20">
               <img src="/icon-192x192.png" alt="Gainly Logo" className="w-full h-full object-cover" />
             </div>
-            
+
             <h1 className="text-4xl font-black tracking-tighter mb-2 text-center">Gainly</h1>
             <p className="text-muted text-center mb-10 text-sm">
               Simple weight gain & fitness tracker.
@@ -178,21 +181,21 @@ function LoginContent() {
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="w-full max-w-sm flex flex-col items-center z-10"
           >
-             <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-6">
-                <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-             </div>
-             <h2 className="text-3xl font-black mb-2 text-center">Check your email</h2>
-             <p className="text-sm text-muted text-center leading-relaxed">
-               We sent a magic login link to <strong className="text-foreground">{email}</strong>.<br/>Click the link to sign in automatically.
-             </p>
-             <button
-               onClick={() => setStep("login")}
-               className="mt-8 text-sm text-muted font-bold active:scale-95 transition-transform"
-             >
-               Use a different email
-             </button>
+            <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-6">
+              <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h2 className="text-3xl font-black mb-2 text-center">Check your email</h2>
+            <p className="text-sm text-muted text-center leading-relaxed">
+              We sent a magic login link to <strong className="text-foreground">{email}</strong>.<br />Click the link to sign in automatically.
+            </p>
+            <button
+              onClick={() => setStep("login")}
+              className="mt-8 text-sm text-muted font-bold active:scale-95 transition-transform"
+            >
+              Use a different email
+            </button>
           </motion.div>
         )}
 
@@ -205,60 +208,60 @@ function LoginContent() {
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="w-full max-w-sm flex flex-col items-center z-10"
           >
-             <h2 className="text-3xl font-black mb-2 self-start">Almost there</h2>
-             <p className="text-sm text-muted mb-8 self-start">Let's set up your fitness profile.</p>
+            <h2 className="text-3xl font-black mb-2 self-start">Almost there</h2>
+            <p className="text-sm text-muted mb-8 self-start">Let's set up your fitness profile.</p>
 
-             <form onSubmit={handleSignup} className="w-full space-y-4">
+            <form onSubmit={handleSignup} className="w-full space-y-4">
+              <input
+                type="text"
+                required
+                placeholder="Full Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
+              />
+              <div className="grid grid-cols-2 gap-4">
                 <input
-                  type="text"
-                  required
-                  placeholder="Full Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  type="number"
+                  placeholder="Age (Optional)"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
                   className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
                 />
-                <div className="grid grid-cols-2 gap-4">
-                  <input
-                    type="number"
-                    placeholder="Age (Optional)"
-                    value={age}
-                    onChange={(e) => setAge(e.target.value)}
-                    className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Gender (Optional)"
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <input
-                    type="number"
-                    placeholder="Height cm (Optional)"
-                    value={height}
-                    onChange={(e) => setHeight(e.target.value)}
-                    className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
-                  />
-                  <input
-                    type="number"
-                    required
-                    placeholder="Weight (kg)"
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                    className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
-                  />
-                </div>
-                
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-4 mt-4 rounded-2xl bg-primary text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {loading ? "Creating profile..." : "Complete Setup"}
-                </button>
-             </form>
+                <input
+                  type="text"
+                  placeholder="Gender (Optional)"
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  type="number"
+                  placeholder="Height cm (Optional)"
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value)}
+                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
+                />
+                <input
+                  type="number"
+                  required
+                  placeholder="Weight (kg)"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-4 mt-4 rounded-2xl bg-primary text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50"
+              >
+                {loading ? "Creating profile..." : "Complete Setup"}
+              </button>
+            </form>
           </motion.div>
         )}
       </AnimatePresence>

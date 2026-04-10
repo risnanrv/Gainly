@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { Bell, Flame, Info, History } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -24,10 +25,10 @@ export default function Home() {
 
   const today = getToday();
   const todaySummary = logs[today] || { totalCalories: 0, totalProtein: 0, entries: [] };
-  
+
   const progress = (todaySummary.totalCalories / targetCalories) * 100;
   const proteinProgress = (todaySummary.totalProtein / targetProtein) * 100;
-  
+
   const remainingCals = Math.max(0, targetCalories - todaySummary.totalCalories);
   const remainingProtein = Math.max(0, targetProtein - todaySummary.totalProtein);
 
@@ -35,17 +36,17 @@ export default function Home() {
   let streak = 0;
   const sortedLogDates = Object.keys(logs).sort().reverse();
   const d = new Date();
-  
+
   // Quick streak logic reading backwards
   for (let i = 0; i < 365; i++) {
     const offset = d.getTimezoneOffset();
     const localDate = new Date(d.getTime() - offset * 60 * 1000);
     const dateStr = localDate.toISOString().split("T")[0];
     if (logs[dateStr] && logs[dateStr].entries.length > 0) {
-       streak++;
+      streak++;
     } else if (dateStr !== today) {
-       // if we skipped a day that isn't today, break streak
-       break;
+      // if we skipped a day that isn't today, break streak
+      break;
     }
     d.setDate(d.getDate() - 1);
   }
@@ -78,6 +79,22 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    const getSession = async () => {
+      const { data } = await supabase.auth.getSession();
+
+      if (data.session) {
+        const user = data.session.user;
+
+        updateAuth({
+          isAuthenticated: true,
+          email: user.email,
+        });
+      }
+    };
+
+    getSession();
+  }, []);
   return (
     <div className="p-6 space-y-8 animate-in fade-in duration-500 overflow-y-auto pb-safe">
       <header className="flex justify-between items-start pt-4">
@@ -87,7 +104,7 @@ export default function Home() {
         </div>
         <div className="flex gap-2">
           <Link href="/progress" className="h-10 px-3 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-500 font-bold text-sm gap-1.5 active:scale-95 transition-transform">
-             <Flame className="w-4 h-4 fill-orange-500" /> {streak}
+            <Flame className="w-4 h-4 fill-orange-500" /> {streak}
           </Link>
           <button onClick={reqNotification} className="w-10 h-10 rounded-xl bg-surface/50 border border-white/5 flex items-center justify-center hover:bg-surface transition-colors active:scale-95 text-muted">
             <Bell className="w-5 h-5" />
@@ -133,9 +150,9 @@ export default function Home() {
           </div>
           {remainingProtein > 0 && <span className="text-[10px] text-muted mt-1">{Math.round(remainingProtein)}g more needed</span>}
           <div className="w-full bg-white/5 h-2 rounded-full mt-4 overflow-hidden">
-            <div 
-              className="bg-primary h-full rounded-full transition-all duration-1000" 
-              style={{ width: `${Math.min(100, proteinProgress)}%` }} 
+            <div
+              className="bg-primary h-full rounded-full transition-all duration-1000"
+              style={{ width: `${Math.min(100, proteinProgress)}%` }}
             />
           </div>
         </div>
@@ -150,10 +167,14 @@ export default function Home() {
         </div>
         <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6">
           {["Egg", "Banana", "Soya Chunks", "Peanuts", "Sweet Potato", "Cherupayar (Green Gram)"].map(food => (
-              <QuickAddCard key={food} foodName={food} />
+            <QuickAddCard key={food} foodName={food} />
           ))}
         </div>
       </section>
     </div>
   );
 }
+function updateAuth(arg0: { isAuthenticated: boolean; email: string | undefined; }) {
+  throw new Error("Function not implemented.");
+}
+
