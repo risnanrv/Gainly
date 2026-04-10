@@ -1,16 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
-export default function Login() {
-  const [step, setStep] = useState<"login" | "otp" | "signup">("login");
+function LoginContent() {
+  const [step, setStep] = useState<"login" | "check_email" | "signup">("login");
   const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
@@ -20,15 +19,25 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { updateAuth, updateProfile } = useStore();
 
-  const handleSendOTP = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (searchParams.get("setup") === "true") {
+       setStep("signup");
+    }
+  }, [searchParams]);
+
+  const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
     setLoading(true);
     
     const { error } = await supabase.auth.signInWithOtp({
       email,
+      options: {
+        emailRedirectTo: 'https://gainly-seven.vercel.app',
+      }
     });
     
     setLoading(false);
@@ -36,43 +45,7 @@ export default function Login() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("OTP sent to your email!");
-      setStep("otp");
-    }
-  };
-
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token) return;
-    setLoading(true);
-    
-    const { data: { session }, error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'email'
-    });
-    
-    if (error || !session) {
-      toast.error(error?.message || "Invalid OTP");
-      setLoading(false);
-      return;
-    }
-    
-    // Check if profile exists
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single();
-      
-    if (!profileData) {
-      setLoading(false);
-      setStep("signup");
-    } else {
-      updateAuth({ isAuthenticated: true, email: session.user.email, name: profileData.name, age: profileData.age });
-      updateProfile({ startingWeight: profileData.startingWeight || 70, currentWeight: profileData.currentWeight || profileData.startingWeight || 70 });
-      toast.success("Welcome back!");
-      router.push("/");
+      setStep("check_email");
     }
   };
 
@@ -122,7 +95,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback` // assuming we configure this route if needed or it handles automatically
+        redirectTo: `https://gainly-seven.vercel.app`
       }
     });
     if (error) {
@@ -155,7 +128,7 @@ export default function Login() {
               Simple weight gain & fitness tracker.
             </p>
 
-            <form onSubmit={handleSendOTP} className="w-full space-y-4">
+            <form onSubmit={handleSendMagicLink} className="w-full space-y-4">
               <input
                 type="email"
                 required
@@ -169,7 +142,7 @@ export default function Login() {
                 disabled={loading}
                 className="w-full py-4 rounded-2xl bg-foreground text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50"
               >
-                {loading ? "Sending OTP..." : "Continue with Email"}
+                {loading ? "Sending link..." : "Continue with Email"}
               </button>
             </form>
 
@@ -196,43 +169,30 @@ export default function Login() {
           </motion.div>
         )}
 
-        {step === "otp" && (
+        {step === "check_email" && (
           <motion.div
-            key="otp"
+            key="check_email"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="w-full max-w-sm flex flex-col items-center z-10"
           >
-             <h2 className="text-3xl font-black mb-2 self-start">Check Email</h2>
-             <p className="text-sm text-muted mb-8 self-start">Enter the OTP sent to {email}</p>
-
-             <form onSubmit={handleVerifyOTP} className="w-full space-y-4">
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter OTP"
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-center tracking-widest font-mono text-xl"
-                />
-                
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-4 mt-4 rounded-2xl bg-primary text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {loading ? "Verifying..." : "Verify & Login"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep("login")}
-                  className="w-full py-4 rounded-2xl text-muted font-bold text-sm active:scale-95 transition-all"
-                >
-                  Back
-                </button>
-             </form>
+             <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-6">
+                <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+             </div>
+             <h2 className="text-3xl font-black mb-2 text-center">Check your email</h2>
+             <p className="text-sm text-muted text-center leading-relaxed">
+               We sent a magic login link to <strong className="text-foreground">{email}</strong>.<br/>Click the link to sign in automatically.
+             </p>
+             <button
+               onClick={() => setStep("login")}
+               className="mt-8 text-sm text-muted font-bold active:scale-95 transition-transform"
+             >
+               Use a different email
+             </button>
           </motion.div>
         )}
 
@@ -303,5 +263,13 @@ export default function Login() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   );
 }

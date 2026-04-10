@@ -50,9 +50,20 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
         }
       } else {
         updateAuth({ isAuthenticated: true, email: email });
+        // Enforce signup flow if missing profile
+        if (pathname !== "/login") {
+           router.replace("/login?setup=true");
+        }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error fetching user data:", e);
+      // Suppress 406 row not found when new user hits it
+      if (e?.code === 'PGRST116') {
+        updateAuth({ isAuthenticated: true, email: email });
+        if (pathname !== "/login") {
+           router.replace("/login?setup=true");
+        }
+      }
     } finally {
       setInitializing(false);
     }
