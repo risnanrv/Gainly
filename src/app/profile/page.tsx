@@ -4,6 +4,7 @@ import { useStore } from "@/store/useStore";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Check, Settings, Bell, LogOut, Info } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function ProfilePage() {
   const { profile, updateProfile, targetCalories, targetProtein, setTargets, reminders, updateReminders } = useStore();
@@ -149,7 +150,13 @@ export default function ProfilePage() {
         </section>
 
         <section className="p-2 space-y-2">
-          <button className="w-full flex items-center justify-center p-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 transition-colors text-red-500 font-bold text-sm border border-red-500/10">
+          <button 
+            onClick={async () => {
+               await supabase.auth.signOut();
+               toast.success("Logged out successfully");
+            }}
+            className="w-full flex items-center justify-center p-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 transition-colors text-red-500 font-bold text-sm border border-red-500/10"
+          >
             <LogOut className="w-4 h-4 mr-2" />
             Logout Account
           </button>

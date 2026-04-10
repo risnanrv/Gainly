@@ -96,24 +96,24 @@ function AddFoodContent() {
       const data = await res.json();
       if (data.status === 1 && data.product) {
         const nut = data.product.nutriments || {};
-        const newFood: Omit<FoodEntryDB, "id" | "timestamp"> = {
+        const newFood: any = {
           name: data.product.product_name || `Barcode ${query}`,
           unit: "grams",
           calories_per_100g: nut["energy-kcal_100g"] || 0,
           protein_per_100g: nut["proteins_100g"] || 0,
+          isNewBarcode: true
         };
-        addCustomFood(newFood);
         setSelectedFood(newFood);
-        toast.success("Found via Barcode!");
+        toast.success("Barcode found! Edit details if needed.");
         stopScanner();
       } else {
-        toast.error("Product not found. Add manually.");
-        setSelectedFood({ name: `Barcode ${query}`, unit: "grams", calories_per_100g: 0, protein_per_100g: 0 });
+        toast.error("Data not found. Please enter manually.");
+        setSelectedFood({ name: `Barcode ${query}`, unit: "grams", calories_per_100g: 0, protein_per_100g: 0, isNewBarcode: true });
         stopScanner();
       }
     } catch {
       toast.error("Network error. Try manual entry.");
-      setSelectedFood({ name: `Barcode ${query}`, unit: "grams", calories_per_100g: 0, protein_per_100g: 0 });
+      setSelectedFood({ name: `Barcode ${query}`, unit: "grams", calories_per_100g: 0, protein_per_100g: 0, isNewBarcode: true });
       stopScanner();
     } finally {
       setIsBarcodeLoading(false);
@@ -334,14 +334,17 @@ function AddFoodContent() {
 
               <div className="flex justify-between items-start mb-6">
                 <div className="w-full mr-4">
-                  {selectedFood.calories_per_100g === 0 && selectedFood.calories_per_unit === undefined ? (
-                    <input
-                      type="text"
-                      value={selectedFood.name}
-                      onChange={(e) => setSelectedFood({ ...selectedFood, name: e.target.value })}
-                      className="w-full bg-background border border-white/10 rounded-xl py-2 px-3 text-xl font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 mb-1"
-                      placeholder="Enter food name"
-                    />
+                  {selectedFood.isNewBarcode || (selectedFood.calories_per_100g === 0 && selectedFood.calories_per_unit === undefined) ? (
+                    <div className="mb-2">
+                       <label className="text-xs text-muted uppercase font-bold tracking-wider mb-1 block">Food Name</label>
+                       <input
+                         type="text"
+                         value={selectedFood.name}
+                         onChange={(e) => setSelectedFood({ ...selectedFood, name: e.target.value })}
+                         className="w-full bg-background border border-white/10 rounded-xl py-2 px-3 text-lg font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                         placeholder="Enter food name"
+                       />
+                    </div>
                   ) : (
                     <h2 className="text-2xl font-bold">{selectedFood.name}</h2>
                   )}
@@ -357,11 +360,17 @@ function AddFoodContent() {
                 </button>
               </div>
 
-              {/* If it's a completely new custom food, let them edit calories and protein directly before saving */}
-              {selectedFood.calories_per_100g === 0 && selectedFood.calories_per_unit === undefined && (
+              {/* Edit Calories and Protein for barcode/custom */}
+              {(selectedFood.isNewBarcode || (selectedFood.calories_per_100g === 0 && selectedFood.calories_per_unit === undefined)) && (
                 <div className="flex gap-2 mb-4 bg-white/5 p-3 rounded-xl border border-white/5">
-                  <input type="number" placeholder="Kcal per 100g" className="w-1/2 bg-background border border-white/10 py-2 px-3 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/50" onChange={e => setSelectedFood({ ...selectedFood, calories_per_100g: Number(e.target.value) })} />
-                  <input type="number" placeholder="Protein per 100g" className="w-1/2 bg-background border border-white/10 py-2 px-3 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/50" onChange={e => setSelectedFood({ ...selectedFood, protein_per_100g: Number(e.target.value) })} />
+                  <div className="w-1/2">
+                    <label className="text-xs text-muted font-bold block mb-1 text-center">Kcal / 100g</label>
+                    <input type="number" value={selectedFood.calories_per_100g || ""} placeholder="Kcal" className="w-full bg-background border border-white/10 py-2 px-3 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/50" onChange={e => setSelectedFood({ ...selectedFood, calories_per_100g: Number(e.target.value) })} />
+                  </div>
+                  <div className="w-1/2">
+                    <label className="text-xs text-muted font-bold block mb-1 text-center">Protein / 100g</label>
+                    <input type="number" value={selectedFood.protein_per_100g || ""} placeholder="Protein" className="w-full bg-background border border-white/10 py-2 px-3 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/50" onChange={e => setSelectedFood({ ...selectedFood, protein_per_100g: Number(e.target.value) })} />
+                  </div>
                 </div>
               )}
 
@@ -394,8 +403,17 @@ function AddFoodContent() {
 
               <button
                 onClick={() => {
-                  if (selectedFood.calories_per_100g === 0 && selectedFood.protein_per_100g > 0) {
-                    addCustomFood(selectedFood);
+                  if (selectedFood.isNewBarcode || (selectedFood.calories_per_100g === 0 && selectedFood.protein_per_100g > 0)) {
+                    // Extract only the necessary fields to store in custom foods
+                    const foodToSave = {
+                       name: selectedFood.name,
+                       unit: selectedFood.unit,
+                       calories_per_100g: selectedFood.calories_per_100g,
+                       protein_per_100g: selectedFood.protein_per_100g,
+                       calories_per_unit: selectedFood.calories_per_unit,
+                       protein_per_unit: selectedFood.protein_per_unit
+                    };
+                    addCustomFood(foodToSave);
                   }
                   handleAdd();
                 }}

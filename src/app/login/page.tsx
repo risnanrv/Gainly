@@ -1,78 +1,143 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUpRight } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 export default function Login() {
-  const [step, setStep] = useState<"login" | "signup">("login");
+  const [step, setStep] = useState<"login" | "otp" | "signup">("login");
   const [email, setEmail] = useState("");
+  const [token, setToken] = useState("");
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
+  const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
+  
   const [loading, setLoading] = useState(false);
   
   const router = useRouter();
   const { updateAuth, updateProfile } = useStore();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
-    // Mock check for existing user - assuming new if they type "new@..." for demo purposes
-    if (email.startsWith("new")) {
-       setStep("signup");
+    setLoading(true);
+    
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+    });
+    
+    setLoading(false);
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("OTP sent to your email!");
+      setStep("otp");
+    }
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setLoading(true);
+    
+    const { data: { session }, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email'
+    });
+    
+    if (error || !session) {
+      toast.error(error?.message || "Invalid OTP");
+      setLoading(false);
+      return;
+    }
+    
+    // Check if profile exists
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+      
+    if (!profileData) {
+      setLoading(false);
+      setStep("signup");
+    } else {
+      updateAuth({ isAuthenticated: true, email: session.user.email, name: profileData.name, age: profileData.age });
+      updateProfile({ startingWeight: profileData.startingWeight || 70, currentWeight: profileData.currentWeight || profileData.startingWeight || 70 });
+      toast.success("Welcome back!");
+      router.push("/");
+    }
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+       toast.error("Auth session lost. Please login again.");
+       setStep("login");
+       setLoading(false);
+       return;
+    }
+
+    const { error } = await supabase
+       .from('profiles')
+       .insert([
+         { 
+           id: user.id, 
+           name, 
+           age: age ? Number(age) : null,
+           gender: gender || null,
+           height: height ? Number(height) : null,
+           startingWeight: weight ? Number(weight) : null,
+           currentWeight: weight ? Number(weight) : null,
+         }
+       ]);
+       
+    if (error) {
+       toast.error("Failed to create profile...");
+       setLoading(false);
        return;
     }
     
-    setLoading(true);
-    setTimeout(() => {
-      updateAuth({ isAuthenticated: true, email });
-      toast.success("Welcome back!");
-      router.push("/");
-    }, 1000);
-  };
-
-  const handleSignup = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    updateAuth({ isAuthenticated: true, email: user.email, name, age: age ? Number(age) : undefined });
+    if (weight) {
+       updateProfile({ startingWeight: Number(weight), currentWeight: Number(weight) });
+    }
     
-    setTimeout(() => {
-      updateAuth({ 
-        isAuthenticated: true, 
-        email, 
-        name, 
-        age: age ? Number(age) : undefined 
-      });
-      
-      if (weight) {
-         updateProfile({ startingWeight: Number(weight), currentWeight: Number(weight) });
-      }
-      
-      toast.success("Account created successfully!");
-      router.push("/");
-    }, 1000);
+    toast.success("Account created successfully!");
+    router.push("/");
   };
 
-  const loginWithGoogle = () => {
+  const loginWithGoogle = async () => {
     setLoading(true);
-    setTimeout(() => {
-      updateAuth({ isAuthenticated: true, name: "Google User" });
-      toast.success("Authenticated with Google");
-      router.push("/");
-    }, 1000);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback` // assuming we configure this route if needed or it handles automatically
+      }
+    });
+    if (error) {
+      toast.error(error.message);
+      setLoading(false);
+    }
   };
 
   return (
     <div className="h-full flex flex-col items-center justify-center p-6 relative overflow-hidden bg-background">
-      {/* Background glow effects */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/20 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-highlight/10 blur-[120px] rounded-full pointer-events-none" />
 
       <AnimatePresence mode="wait">
-        {step === "login" ? (
+        {step === "login" && (
           <motion.div
             key="login"
             initial={{ opacity: 0, y: 20 }}
@@ -85,31 +150,26 @@ export default function Login() {
               <img src="/icon-192x192.png" alt="Gainly Logo" className="w-full h-full object-cover" />
             </div>
             
-            <h1 className="text-4xl font-black tracking-tighter mb-2 text-center">
-              Gainly
-            </h1>
+            <h1 className="text-4xl font-black tracking-tighter mb-2 text-center">Gainly</h1>
             <p className="text-muted text-center mb-10 text-sm">
               Simple weight gain & fitness tracker.
-              <br />Consistency over complexity.
             </p>
 
-            <form onSubmit={handleLogin} className="w-full space-y-4">
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  placeholder="Email address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-surface/50 backdrop-blur-md border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted/60"
-                />
-              </div>
+            <form onSubmit={handleSendOTP} className="w-full space-y-4">
+              <input
+                type="email"
+                required
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-surface/50 backdrop-blur-md border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-muted/60"
+              />
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 rounded-2xl bg-foreground text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center"
+                className="w-full py-4 rounded-2xl bg-foreground text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50"
               >
-                {loading ? "Authenticating..." : "Continue with Email"}
+                {loading ? "Sending OTP..." : "Continue with Email"}
               </button>
             </form>
 
@@ -133,9 +193,50 @@ export default function Login() {
               </svg>
               Continue with Google
             </button>
-            <p className="mt-6 text-xs text-muted text-center cursor-pointer" onClick={() => setStep("signup")}>Don't have an account? <strong className="text-foreground">Sign Up</strong></p>
           </motion.div>
-        ) : (
+        )}
+
+        {step === "otp" && (
+          <motion.div
+            key="otp"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="w-full max-w-sm flex flex-col items-center z-10"
+          >
+             <h2 className="text-3xl font-black mb-2 self-start">Check Email</h2>
+             <p className="text-sm text-muted mb-8 self-start">Enter the OTP sent to {email}</p>
+
+             <form onSubmit={handleVerifyOTP} className="w-full space-y-4">
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter OTP"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-center tracking-widest font-mono text-xl"
+                />
+                
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 mt-4 rounded-2xl bg-primary text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {loading ? "Verifying..." : "Verify & Login"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep("login")}
+                  className="w-full py-4 rounded-2xl text-muted font-bold text-sm active:scale-95 transition-all"
+                >
+                  Back
+                </button>
+             </form>
+          </motion.div>
+        )}
+
+        {step === "signup" && (
           <motion.div
             key="signup"
             initial={{ opacity: 0, x: 20 }}
@@ -165,6 +266,22 @@ export default function Login() {
                     className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
                   />
                   <input
+                    type="text"
+                    placeholder="Gender (Optional)"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <input
+                    type="number"
+                    placeholder="Height cm (Optional)"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    className="w-full bg-surface/50 border border-white/10 rounded-2xl py-4 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-muted/60"
+                  />
+                  <input
                     type="number"
                     required
                     placeholder="Weight (kg)"
@@ -179,14 +296,7 @@ export default function Login() {
                   disabled={loading}
                   className="w-full py-4 mt-4 rounded-2xl bg-primary text-background font-bold text-sm active:scale-95 transition-all disabled:opacity-50"
                 >
-                  {loading ? "Creating account..." : "Complete Setup"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep("login")}
-                  className="w-full py-4 rounded-2xl text-muted font-bold text-sm active:scale-95 transition-all"
-                >
-                  Back to Login
+                  {loading ? "Creating profile..." : "Complete Setup"}
                 </button>
              </form>
           </motion.div>
