@@ -28,7 +28,7 @@ function AddFoodContent() {
 
   const [search, setSearch] = useState("");
   const [selectedFood, setSelectedFood] = useState<ParsedFood | null>(null);
-  const [quantity, setQuantity] = useState<number>(100);
+  const [quantity, setQuantity] = useState<number | "">("");
   const [isScanning, setIsScanning] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -45,7 +45,6 @@ function AddFoodContent() {
   const yesterdayStr = yesterday.toISOString().split("T")[0];
   const yesterdayEntries = logs[yesterdayStr]?.entries || [];
 
-  // Compute frequencies for sorting
   const freqMap: Record<string, number> = {};
   Object.values(logs).forEach(day => {
     day.entries.forEach(e => {
@@ -71,36 +70,43 @@ function AddFoodContent() {
   let liveCalories = 0;
   let liveProtein = 0;
 
+  const validQuantity = quantity === "" ? 0 : Number(quantity);
+
   if (selectedFood) {
     if (selectedFood.unit === "count" && selectedFood.calories_per_unit) {
-      liveCalories = selectedFood.calories_per_unit * quantity;
-      liveProtein = (selectedFood.protein_per_unit || 0) * quantity;
+      liveCalories = selectedFood.calories_per_unit * validQuantity;
+      liveProtein = (selectedFood.protein_per_unit || 0) * validQuantity;
     } else {
-      liveCalories = (selectedFood.calories_per_100g || 0) * (quantity / 100);
-      liveProtein = (selectedFood.protein_per_100g || 0) * (quantity / 100);
+      liveCalories = (selectedFood.calories_per_100g || 0) * (validQuantity / 100);
+      liveProtein = (selectedFood.protein_per_100g || 0) * (validQuantity / 100);
     }
   }
 
   liveCalories = Math.round(liveCalories);
   liveProtein = Math.round(liveProtein * 10) / 10;
 
+  const isUnrealistic =
+    (selectedFood?.unit === "count" && validQuantity > 10) ||
+    (selectedFood?.unit === "grams" && validQuantity > 1500) ||
+    liveCalories > 2000;
+
   const handleAdd = () => {
-    if (!selectedFood || quantity <= 0) return;
+    if (!selectedFood || validQuantity <= 0) return;
     addFood(today, {
       name: selectedFood.name,
       calories: liveCalories,
       protein: liveProtein,
     });
-    toast.success(`Logged ${quantity}${selectedFood.unit === "count" ? "x" : "g"} ${selectedFood.name}`);
+    toast.success(`Logged ${validQuantity}${selectedFood.unit === "count" ? " units" : "g"} ${selectedFood.name}`);
     setSelectedFood(null);
-    setQuantity(100);
-    if (initialFood) router.replace("/add"); // clean URL safely
+    setQuantity("");
+    if (initialFood) router.replace("/add");
   };
 
   const handleBarcodeSearch = async (query: string) => {
     if (!query) return;
     setIsBarcodeLoading(true);
-    setSearch(""); // clear regular search if open
+    setSearch("");
 
     try {
       const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${query}.json`);
@@ -111,7 +117,6 @@ function AddFoodContent() {
       if (data.status === 1 && data.product) {
         const nut = data.product.nutriments || {};
         
-        // Clean data resolution
         const resolvedName = data.product.product_name || `Scanned Item (${query})`;
         const kcals = Number(nut["energy-kcal_100g"]) || Number(nut["energy_100g"]) / 4.184 || 0;
         const proteins = Number(nut["proteins_100g"]) || 0;
@@ -125,7 +130,7 @@ function AddFoodContent() {
         };
         
         setSelectedFood(newFood);
-        setQuantity(100);
+        setQuantity("");
         stopScanner();
       } else {
         toast.info("Product not found in database. Please enter manually.", { duration: 4000 });
@@ -185,7 +190,6 @@ function AddFoodContent() {
 
   const stopScanner = async () => {
     if (scannerRef.current && scannerRef.current.isScanning) {
-      // Catch exceptions silently if device was already freed
       await scannerRef.current.stop().catch(()=>null);
     }
     setScannerActive(false);
@@ -304,7 +308,7 @@ function AddFoodContent() {
                 <button
                   onClick={() => {
                     setSelectedFood({ name: search, unit: "grams", calories_per_100g: 0, protein_per_100g: 0 });
-                    setQuantity(100);
+                    setQuantity("");
                   }}
                   className="text-xs text-primary font-bold flex items-center gap-1 active:scale-95 transition-transform"
                 >
@@ -318,7 +322,7 @@ function AddFoodContent() {
                 key={food.name}
                 onClick={() => {
                    setSelectedFood(food as ParsedFood); 
-                   setQuantity(food.unit === 'count' ? 1 : 100);
+                   setQuantity("");
                 }}
                 className="w-full flex items-center justify-between p-4 bg-surface/50 border border-white/5 rounded-2xl active:bg-surface transition-colors"
               >
@@ -396,33 +400,56 @@ function AddFoodContent() {
                 </div>
               )}
 
-              {/* Quantity Stepper */}
-              <div className="flex items-center justify-center gap-4 mb-8">
-                 <button onClick={() => setQuantity(Math.max(1, quantity - (selectedFood.unit === 'count' ? 1 : 10)))} className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Minus className="w-6 h-6 stroke-[3]"/></button>
-                 <div className="relative flex-1">
-                   <input
-                     type="number"
-                     inputMode="decimal"
-                     value={quantity || ""}
-                     onChange={(e) => setQuantity(Number(e.target.value))}
-                     className="w-full bg-background border border-white/10 rounded-2xl py-4 flex-1 text-3xl font-black text-center focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner"
-                   />
-                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted font-bold pointer-events-none">{selectedFood.unit === "count" ? "x" : "g"}</span>
-                 </div>
-                 <button onClick={() => setQuantity(quantity + (selectedFood.unit === 'count' ? 1 : 10))} className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Plus className="w-6 h-6 stroke-[3]"/></button>
-              </div>
+              {/* Enhanced Quantity Logic */}
+              {selectedFood.unit === "count" ? (
+                <div className="flex items-center justify-center gap-6 mb-8 mt-2">
+                   <button onClick={() => setQuantity(Math.max(1, (quantity === "" ? 1 : quantity) - 1))} className="w-16 h-16 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Minus className="w-6 h-6 stroke-[3]"/></button>
+                   <div className="flex flex-col items-center justify-center min-w-[100px]">
+                     <span className="text-5xl font-black text-foreground drop-shadow-sm">{quantity === "" ? "—" : quantity}</span>
+                     <span className="text-muted text-sm font-bold tracking-wider uppercase mt-1">Units</span>
+                   </div>
+                   <button onClick={() => setQuantity((quantity === "" ? 0 : quantity) + 1)} className="w-16 h-16 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Plus className="w-6 h-6 stroke-[3]"/></button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-4 mb-8 relative">
+                   <button onClick={() => setQuantity(Math.max(1, (quantity === "" ? 50 : quantity) - 50))} className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Minus className="w-6 h-6 stroke-[3]"/></button>
+                   <div className="relative flex-1">
+                     <input
+                       type="number"
+                       inputMode="decimal"
+                       placeholder="Amount"
+                       value={quantity}
+                       onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
+                       className="w-full bg-background border border-white/10 rounded-2xl py-4 flex-1 text-3xl font-black text-center focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner placeholder:text-muted/30"
+                     />
+                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted font-bold pointer-events-none">g</span>
+                   </div>
+                   <button onClick={() => setQuantity((quantity === "" ? 0 : quantity) + 50)} className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Plus className="w-6 h-6 stroke-[3]"/></button>
+                </div>
+              )}
 
-              <div className="flex justify-around items-center bg-primary/10 border border-primary/20 rounded-2xl p-5 mb-6">
-                <div className="text-center">
-                  <p className="text-primary/80 text-[10px] font-bold uppercase tracking-widest mb-1">Calories</p>
-                  <p className="text-3xl tracking-tight font-black text-foreground drop-shadow-md">{liveCalories}</p>
-                </div>
-                <div className="w-px h-10 bg-primary/20" />
-                <div className="text-center">
-                  <p className="text-primary/80 text-[10px] font-bold uppercase tracking-widest mb-1">Protein</p>
-                  <p className="text-3xl tracking-tight font-black text-foreground drop-shadow-md">{liveProtein}g</p>
-                </div>
-              </div>
+              {quantity === "" ? (
+                 <div className="text-center py-4 mb-4 text-muted text-sm font-medium">Enter quantity to see nutrition...</div>
+              ) : (
+                <>
+                  {isUnrealistic && (
+                     <div className="mx-auto max-w-sm mb-4 px-3 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-500 text-xs font-semibold text-center mt-[-10px]">
+                        ⚠️ This quantity seems unusually high.
+                     </div>
+                  )}
+                  <div className="flex justify-around items-center bg-primary/10 border border-primary/20 rounded-2xl p-5 mb-6">
+                    <div className="text-center">
+                      <p className="text-primary/80 text-[10px] font-bold uppercase tracking-widest mb-1">Calories</p>
+                      <p className="text-3xl tracking-tight font-black text-foreground drop-shadow-md">{liveCalories}</p>
+                    </div>
+                    <div className="w-px h-10 bg-primary/20" />
+                    <div className="text-center">
+                      <p className="text-primary/80 text-[10px] font-bold uppercase tracking-widest mb-1">Protein</p>
+                      <p className="text-3xl tracking-tight font-black text-foreground drop-shadow-md">{liveProtein}g</p>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <button
                 onClick={() => {
@@ -438,7 +465,7 @@ function AddFoodContent() {
                   }
                   handleAdd();
                 }}
-                disabled={quantity <= 0 || !selectedFood.name}
+                disabled={validQuantity <= 0 || !selectedFood.name}
                 className="w-full py-4 rounded-2xl bg-primary text-background font-black tracking-wide text-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale"
               >
                 Add to Diary
