@@ -207,6 +207,12 @@ function AddFoodContent() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Add Food</h1>
           <div className="flex gap-2">
+            <button 
+              onClick={() => router.push('/foods')} 
+              className="h-11 px-4 rounded-xl bg-surface/80 border border-white/5 flex items-center justify-center font-bold text-sm text-muted hover:text-foreground active:scale-95 transition-colors"
+            >
+              Food DB
+            </button>
             <button onClick={() => setIsScanning(!isScanning)} className={`h-11 px-4 rounded-xl border flex items-center justify-center font-bold text-sm active:scale-95 transition-colors ${isScanning ? 'bg-primary border-primary text-background' : 'bg-surface/80 border-white/5 text-foreground'}`}>
               <Barcode className="w-4 h-4 mr-2" /> Scanner
             </button>
