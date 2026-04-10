@@ -68,47 +68,7 @@ export default function ProgressPage() {
           <h1 className="text-2xl font-bold tracking-tight">Progress</h1>
           <p className="text-muted text-sm mt-1">Track your weight and averages over time.</p>
         </div>
-        <button 
-           onClick={() => setAddingWeight(true)}
-           className="w-10 h-10 rounded-xl bg-highlight/10 text-highlight flex items-center justify-center active:scale-95 transition-colors"
-        >
-           <Plus className="w-5 h-5 pointer-events-none" />
-        </button>
       </header>
-
-      <AnimatePresence>
-        {addingWeight && (
-          <motion.div 
-             initial={{ height: 0, opacity: 0 }}
-             animate={{ height: "auto", opacity: 1 }}
-             exit={{ height: 0, opacity: 0 }}
-             className="bg-surface border border-white/5 p-4 rounded-3xl mb-6 overflow-hidden"
-          >
-             <h3 className="text-sm font-semibold mb-3 tracking-wider uppercase text-muted">Log Past Weight</h3>
-             <div className="flex flex-col gap-3">
-                <input 
-                  type="date" 
-                  value={manualDate} 
-                  onChange={e => setManualDate(e.target.value)}
-                  className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" 
-                />
-                <div className="flex gap-2 items-center">
-                  <div className="relative flex-1">
-                    <input 
-                      type="number" 
-                      placeholder="Enter weight"
-                      value={manualWeight} 
-                      onChange={e => setManualWeight(e.target.value)}
-                      className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 pr-10" 
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted text-xs font-bold pointer-events-none">kg</span>
-                  </div>
-                  <button onClick={handleManualWeight} className="h-full px-5 py-3 bg-highlight text-background rounded-xl font-bold active:scale-95 transition-transform shrink-0"><Check className="w-5 h-5" /></button>
-                </div>
-             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div className="space-y-6">
         <section className="bg-surface border border-white/5 p-5 rounded-3xl">

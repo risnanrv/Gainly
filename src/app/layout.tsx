@@ -4,6 +4,7 @@ import BottomNav from "@/components/BottomNav";
 import { Toaster } from "sonner";
 import { NotificationManager } from "@/components/NotificationManager";
 import AuthWrapper from "@/components/AuthWrapper";
+import { SplashScreen } from "@/components/SplashScreen";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -16,6 +17,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#10b981",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -26,6 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-background text-foreground h-[100dvh] overflow-hidden`}>
+        <SplashScreen />
         <NotificationManager />
         <div className="mx-auto flex flex-col h-[100dvh] max-w-md border-x border-white/5 bg-background shadow-2xl relative shadow-primary/5">
           <AuthWrapper>
