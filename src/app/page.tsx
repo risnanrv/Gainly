@@ -26,11 +26,14 @@ export default function Home() {
   const today = getToday();
   const todaySummary = logs[today] || { totalCalories: 0, totalProtein: 0, entries: [] };
 
-  const progress = (todaySummary.totalCalories / targetCalories) * 100;
-  const proteinProgress = (todaySummary.totalProtein / targetProtein) * 100;
+  const safeTargetCalories = targetCalories || 0;
+  const safeTargetProtein = targetProtein || 0;
+  
+  const progress = safeTargetCalories > 0 ? (todaySummary.totalCalories / safeTargetCalories) * 100 : 0;
+  const proteinProgress = safeTargetProtein > 0 ? (todaySummary.totalProtein / safeTargetProtein) * 100 : 0;
 
-  const remainingCals = Math.max(0, targetCalories - todaySummary.totalCalories);
-  const remainingProtein = Math.max(0, targetProtein - todaySummary.totalProtein);
+  const remainingCals = Math.max(0, safeTargetCalories - todaySummary.totalCalories);
+  const remainingProtein = Math.max(0, safeTargetProtein - todaySummary.totalProtein);
 
   // Calculate Streak
   let streak = 0;

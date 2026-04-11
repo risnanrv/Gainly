@@ -21,10 +21,12 @@ export function NotificationManager() {
         if (lastNotified.current === todayStr) return;
 
         const summary = logs[todayStr] || { totalCalories: 0, totalProtein: 0 };
-        const reachedTarget = summary.totalCalories >= targetCalories;
+        const safeCalories = targetCalories || 0;
+        const safeProtein = targetProtein || 0;
+        const reachedTarget = summary.totalCalories >= safeCalories;
         
         const title = reachedTarget ? "Great job!" : "You missed your target";
-        const body = `You ate ${Math.round(summary.totalCalories)}/${targetCalories} kcal and ${Math.round(summary.totalProtein)}/${targetProtein}g protein today.`;
+        const body = `You ate ${Math.round(summary.totalCalories)}/${safeCalories} kcal and ${Math.round(summary.totalProtein)}/${safeProtein}g protein today.`;
 
         if ("Notification" in window && Notification.permission === "granted") {
           new Notification(title, { body, icon: "/icon-192x192.png" });

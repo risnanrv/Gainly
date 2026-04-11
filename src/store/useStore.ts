@@ -30,10 +30,10 @@ export interface ExpenseCategory {
 
 export interface UserProfile {
   email?: string;
-  startingWeight: number;
-  currentWeight: number;
-  targetWeight: number;
-  weeks: number;
+  startingWeight: number | null;
+  currentWeight: number | null;
+  targetWeight: number | null;
+  weeks: number | null;
   manualCalories?: number;
   manualProtein?: number;
 }
@@ -63,8 +63,8 @@ export interface UserAuth {
 }
 
 interface AppState {
-  targetCalories: number;
-  targetProtein: number;
+  targetCalories: number | null;
+  targetProtein: number | null;
   logs: Record<string, DailySummary>;
   weightLogs: Record<string, number>;
   expenses: Record<string, ExpenseEntry[]>;
@@ -73,7 +73,7 @@ interface AppState {
   profile: UserProfile;
   auth: UserAuth;
   reminders: Reminders;
-  setTargets: (calories: number, protein: number) => void;
+  setTargets: (calories: number | null, protein: number | null) => void;
   updateProfile: (profile: Partial<UserProfile>) => void;
   updateAuth: (auth: Partial<UserAuth>) => void;
   logout: () => void;
@@ -98,8 +98,8 @@ interface AppState {
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
-      targetCalories: 2500,
-      targetProtein: 120,
+      targetCalories: null,
+      targetProtein: null,
       logs: {},
       weightLogs: {},
       expenses: {},
@@ -109,10 +109,10 @@ export const useStore = create<AppState>()(
       ],
       customFoods: [],
       profile: {
-        startingWeight: 70,
-        currentWeight: 70,
-        targetWeight: 75,
-        weeks: 12,
+        startingWeight: null,
+        currentWeight: null,
+        targetWeight: null,
+        weeks: null,
       },
       auth: {
         isAuthenticated: false,
@@ -134,9 +134,9 @@ export const useStore = create<AppState>()(
            expenses: {}, 
            expenseCategories: [{ id: "cat_gym", name: "Gym" }, { id: "cat_diet", name: "Diet Foods" }], 
            customFoods: [],
-           profile: { startingWeight: 70, currentWeight: 70, targetWeight: 75, weeks: 12 },
-           targetCalories: 2500,
-           targetProtein: 120
+           profile: { startingWeight: null, currentWeight: null, targetWeight: null, weeks: null },
+           targetCalories: null,
+           targetProtein: null
         }),
       updateReminders: (updates) =>
         set((state) => ({ reminders: { ...state.reminders, ...updates } })),

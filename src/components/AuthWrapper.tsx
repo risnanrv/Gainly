@@ -63,13 +63,16 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
       
       if (profile) {
         updateAuth({ isAuthenticated: true, email: email, name: profile.name, age: profile.age });
-        if (profile.target_calories) stateUpdates.targetCalories = profile.target_calories;
-        if (profile.target_protein) stateUpdates.targetProtein = profile.target_protein;
+        
+        // Push actual database values, strictly bypassing any fake logical defaults
+        if (profile.target_calories !== undefined) stateUpdates.targetCalories = profile.target_calories;
+        if (profile.target_protein !== undefined) stateUpdates.targetProtein = profile.target_protein;
+        
         stateUpdates.profile = { 
-           startingWeight: profile.starting_weight || 70, 
-           currentWeight: profile.current_weight || 70, 
-           targetWeight: profile.target_weight || 75, 
-           weeks: profile.weeks || 12 
+           startingWeight: profile.starting_weight ?? null, 
+           currentWeight: profile.current_weight ?? null, 
+           targetWeight: profile.target_weight ?? null, 
+           weeks: profile.weeks ?? null 
         };
       } else {
         updateAuth({ isAuthenticated: true, email: email });
@@ -193,7 +196,13 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
     }
   }, [mounted, initializing, auth.isAuthenticated, pathname, router]);
 
-  if (!mounted || initializing) return null; 
+  if (!mounted || initializing) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+      </div>
+    );
+  }
   if (!auth.isAuthenticated && pathname !== "/login") return null;
 
   return <>{children}</>;

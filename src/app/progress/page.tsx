@@ -23,8 +23,8 @@ export default function ProgressPage() {
   });
 
   const hasData = graphData.length > 0;
-  const startingWeight = profile.startingWeight || profile.currentWeight;
-  const currentLog = hasData ? graphData[graphData.length - 1].weight : profile.currentWeight;
+  const startingWeight = profile.startingWeight || profile.currentWeight || 0;
+  const currentLog = hasData ? graphData[graphData.length - 1].weight : (profile.currentWeight || 0);
   const diff = currentLog - startingWeight;
   const isGain = diff >= 0;
 
