@@ -95,9 +95,10 @@ export default function FoodsPage() {
                     <p className="text-xs text-muted mt-1 font-medium">
                        {food.unit === "count" 
                          ? `${food.calories_per_unit || 0} kcal / ${food.protein_per_unit || 0}g per unit`
+                         : food.unit === "ml"
+                         ? `${food.calories_per_100ml || 0} kcal / ${food.protein_per_100ml || 0}g per 100ml`
                          : `${food.calories_per_100g || 0} kcal / ${food.protein_per_100g || 0}g per 100g`}
                     </p>
-                    {isCustom && <span className="text-[10px] uppercase font-bold tracking-wider bg-highlight/10 text-highlight px-2 py-0.5 rounded border border-highlight/20 mt-2 inline-block">Personal</span>}
                  </div>
                  <div className="flex gap-2">
                     <button 
@@ -165,19 +166,20 @@ export default function FoodsPage() {
                  <div>
                    <label className="text-[10px] uppercase text-muted font-bold tracking-wider block mb-1.5 px-1">Measurement Type</label>
                    <div className="flex bg-background rounded-2xl p-1.5 border border-white/5 shadow-inner">
-                      <button onClick={() => setEditingFood({...editingFood, unit: 'grams', calories_per_unit: undefined, protein_per_unit: undefined, calories_per_100g: editingFood.calories_per_100g || "", protein_per_100g: editingFood.protein_per_100g || ""})} className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${editingFood.unit === 'grams' ? 'bg-primary text-background shadow-md' : 'text-muted hover:text-foreground'}`}>Grams</button>
-                      <button onClick={() => setEditingFood({...editingFood, unit: 'count', calories_per_100g: undefined, protein_per_100g: undefined, calories_per_unit: editingFood.calories_per_unit || "", protein_per_unit: editingFood.protein_per_unit || ""})} className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${editingFood.unit === 'count' ? 'bg-primary text-background shadow-md' : 'text-muted hover:text-foreground'}`}>Units</button>
+                      <button onClick={() => setEditingFood({...editingFood, unit: 'grams', calories_per_unit: undefined, protein_per_unit: undefined, calories_per_100ml: undefined, protein_per_100ml: undefined, calories_per_100g: editingFood.calories_per_100g || "", protein_per_100g: editingFood.protein_per_100g || ""})} className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${editingFood.unit === 'grams' ? 'bg-primary text-background shadow-md' : 'text-muted hover:text-foreground'}`}>Grams</button>
+                      <button onClick={() => setEditingFood({...editingFood, unit: 'count', calories_per_100g: undefined, protein_per_100g: undefined, calories_per_100ml: undefined, protein_per_100ml: undefined, calories_per_unit: editingFood.calories_per_unit || "", protein_per_unit: editingFood.protein_per_unit || ""})} className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${editingFood.unit === 'count' ? 'bg-primary text-background shadow-md' : 'text-muted hover:text-foreground'}`}>Units</button>
+                      <button onClick={() => setEditingFood({...editingFood, unit: 'ml', calories_per_100g: undefined, protein_per_100g: undefined, calories_per_unit: undefined, protein_per_unit: undefined, calories_per_100ml: editingFood.calories_per_100ml || "", protein_per_100ml: editingFood.protein_per_100ml || ""})} className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${editingFood.unit === 'ml' ? 'bg-primary text-background shadow-md' : 'text-muted hover:text-foreground'}`}>mL</button>
                    </div>
                  </div>
 
                  <div className="grid grid-cols-2 gap-4">
                    <div className="bg-background border border-white/5 rounded-2xl p-3 shadow-inner">
-                      <label className="text-[10px] uppercase text-muted font-bold tracking-wider block mb-2 text-center">Calories {editingFood.unit === 'count' ? 'per unit' : '/ 100g'}</label>
-                      <input type="number" min="0" placeholder="0" value={editingFood.unit === 'count' ? editingFood.calories_per_unit : editingFood.calories_per_100g} onChange={e => editingFood.unit === 'count' ? setEditingFood({...editingFood, calories_per_unit: Number(e.target.value)}) : setEditingFood({...editingFood, calories_per_100g: Number(e.target.value)})} className="w-full bg-transparent text-2xl font-black text-center focus:outline-none placeholder:text-muted/30" />
+                      <label className="text-[10px] uppercase text-muted font-bold tracking-wider block mb-2 text-center">Calories {editingFood.unit === 'count' ? 'per unit' : editingFood.unit === 'ml' ? '/ 100ml' : '/ 100g'}</label>
+                      <input type="number" min="0" placeholder="0" value={editingFood.unit === 'count' ? editingFood.calories_per_unit : editingFood.unit === 'ml' ? editingFood.calories_per_100ml : editingFood.calories_per_100g} onChange={e => editingFood.unit === 'count' ? setEditingFood({...editingFood, calories_per_unit: Number(e.target.value)}) : editingFood.unit === 'ml' ? setEditingFood({...editingFood, calories_per_100ml: Number(e.target.value)}) : setEditingFood({...editingFood, calories_per_100g: Number(e.target.value)})} className="w-full bg-transparent text-2xl font-black text-center focus:outline-none placeholder:text-muted/30" />
                    </div>
                    <div className="bg-background border border-white/5 rounded-2xl p-3 shadow-inner">
-                      <label className="text-[10px] uppercase text-muted font-bold tracking-wider block mb-2 text-center">Protein {editingFood.unit === 'count' ? 'per unit' : '/ 100g'}</label>
-                      <input type="number" min="0" placeholder="0" value={editingFood.unit === 'count' ? editingFood.protein_per_unit : editingFood.protein_per_100g} onChange={e => editingFood.unit === 'count' ? setEditingFood({...editingFood, protein_per_unit: Number(e.target.value)}) : setEditingFood({...editingFood, protein_per_100g: Number(e.target.value)})} className="w-full bg-transparent text-2xl font-black text-center focus:outline-none placeholder:text-muted/30" />
+                      <label className="text-[10px] uppercase text-muted font-bold tracking-wider block mb-2 text-center">Protein {editingFood.unit === 'count' ? 'per unit' : editingFood.unit === 'ml' ? '/ 100ml' : '/ 100g'}</label>
+                      <input type="number" min="0" placeholder="0" value={editingFood.unit === 'count' ? editingFood.protein_per_unit : editingFood.unit === 'ml' ? editingFood.protein_per_100ml : editingFood.protein_per_100g} onChange={e => editingFood.unit === 'count' ? setEditingFood({...editingFood, protein_per_unit: Number(e.target.value)}) : editingFood.unit === 'ml' ? setEditingFood({...editingFood, protein_per_100ml: Number(e.target.value)}) : setEditingFood({...editingFood, protein_per_100g: Number(e.target.value)})} className="w-full bg-transparent text-2xl font-black text-center focus:outline-none placeholder:text-muted/30" />
                    </div>
                  </div>
 

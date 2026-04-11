@@ -45,11 +45,13 @@ export interface Reminders {
 export interface FoodEntryDB {
   id: string;
   name: string;
-  unit: 'count' | 'grams';
+  unit: 'count' | 'grams' | 'ml';
   calories_per_unit?: number;
   protein_per_unit?: number;
   calories_per_100g?: number;
   protein_per_100g?: number;
+  calories_per_100ml?: number;
+  protein_per_100ml?: number;
   timestamp: number;
 }
 
@@ -90,6 +92,7 @@ interface AppState {
   removeExpense: (date: string, id: string) => void;
   addExpenseCategory: (name: string) => void;
   removeExpenseCategory: (id: string) => void;
+  clearData: () => void;
 }
 
 export const useStore = create<AppState>()(
@@ -124,6 +127,17 @@ export const useStore = create<AppState>()(
       updateAuth: (updates) =>
         set((state) => ({ auth: { ...state.auth, ...updates } })),
       logout: () => set({ auth: { isAuthenticated: false } }),
+      clearData: () => 
+        set({ 
+           logs: {}, 
+           weightLogs: {}, 
+           expenses: {}, 
+           expenseCategories: [{ id: "cat_gym", name: "Gym" }, { id: "cat_diet", name: "Diet Foods" }], 
+           customFoods: [],
+           profile: { startingWeight: 70, currentWeight: 70, targetWeight: 75, weeks: 12 },
+           targetCalories: 2500,
+           targetProtein: 120
+        }),
       updateReminders: (updates) =>
         set((state) => ({ reminders: { ...state.reminders, ...updates } })),
       

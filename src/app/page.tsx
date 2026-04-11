@@ -54,13 +54,11 @@ export default function Home() {
   // Basic AI Suggestions logic
   let suggestion = "";
   if (remainingProtein > 30 && remainingCals < 500) {
-    suggestion = "You are low on protein but high on calories! Eat lean meat or egg whites.";
-  } else if (remainingCals > 800) {
-    suggestion = `Add ${Math.round(remainingCals / 130)} bowls of rice to reach your calorie goal!`;
-  } else if (remainingProtein > 20) {
-    suggestion = `Add ${Math.round(remainingProtein / 6)} eggs to hit your protein!`;
+    suggestion = "You are low on protein but high on calories. Focus on lean protein sources.";
   } else if (remainingCals <= 0) {
     suggestion = "You've exceeded calorie limits! Focus on hydration and rest.";
+  } else if (remainingCals > 0 || remainingProtein > 0) {
+    suggestion = "You still have room for more calories and protein today.";
   } else {
     suggestion = "Doing great! Keep tracking.";
   }

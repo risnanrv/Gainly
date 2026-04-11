@@ -13,11 +13,13 @@ import { Html5Qrcode } from "html5-qrcode";
 // Clean Data Handling Structure
 interface ParsedFood {
   name: string;
-  calories_per_100g: number;
-  protein_per_100g: number;
-  unit: "grams" | "count";
+  calories_per_100g?: number;
+  protein_per_100g?: number;
+  unit: "grams" | "count" | "ml";
   calories_per_unit?: number;
   protein_per_unit?: number;
+  calories_per_100ml?: number;
+  protein_per_100ml?: number;
   isNewBarcode?: boolean;
 }
 
@@ -73,9 +75,12 @@ function AddFoodContent() {
   const validQuantity = quantity === "" ? 0 : Number(quantity);
 
   if (selectedFood) {
-    if (selectedFood.unit === "count" && selectedFood.calories_per_unit) {
+    if (selectedFood.unit === "count" && selectedFood.calories_per_unit !== undefined) {
       liveCalories = selectedFood.calories_per_unit * validQuantity;
       liveProtein = (selectedFood.protein_per_unit || 0) * validQuantity;
+    } else if (selectedFood.unit === "ml" && selectedFood.calories_per_100ml !== undefined) {
+      liveCalories = selectedFood.calories_per_100ml * (validQuantity / 100);
+      liveProtein = (selectedFood.protein_per_100ml || 0) * (validQuantity / 100);
     } else {
       liveCalories = (selectedFood.calories_per_100g || 0) * (validQuantity / 100);
       liveProtein = (selectedFood.protein_per_100g || 0) * (validQuantity / 100);
@@ -88,6 +93,7 @@ function AddFoodContent() {
   const isUnrealistic =
     (selectedFood?.unit === "count" && validQuantity > 10) ||
     (selectedFood?.unit === "grams" && validQuantity > 1500) ||
+    (selectedFood?.unit === "ml" && validQuantity > 1500) ||
     liveCalories > 2000;
 
   const handleAdd = () => {
@@ -97,7 +103,7 @@ function AddFoodContent() {
       calories: liveCalories,
       protein: liveProtein,
     });
-    toast.success(`Logged ${validQuantity}${selectedFood.unit === "count" ? " units" : "g"} ${selectedFood.name}`);
+    toast.success(`Logged ${validQuantity}${selectedFood.unit === "count" ? " units" : selectedFood.unit === "ml" ? "ml" : "g"} ${selectedFood.name}`);
     setSelectedFood(null);
     setQuantity("");
     if (initialFood) router.replace("/add");
@@ -382,7 +388,7 @@ function AddFoodContent() {
                     <h2 className="text-2xl font-black tracking-tight leading-tight">{selectedFood.name}</h2>
                   )}
                   <p className="text-muted text-sm mt-2 font-medium">
-                     Specify amount in {selectedFood.unit === "count" ? "units" : "grams"}
+                     Specify amount in {selectedFood.unit === "count" ? "units" : selectedFood.unit === "ml" ? "ml" : "grams"}
                   </p>
                 </div>
                 <button
@@ -428,7 +434,7 @@ function AddFoodContent() {
                        onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
                        className="w-full bg-background border border-white/10 rounded-2xl py-4 flex-1 text-3xl font-black text-center focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner placeholder:text-muted/30"
                      />
-                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted font-bold pointer-events-none">g</span>
+                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted font-bold pointer-events-none">{selectedFood.unit === "ml" ? "ml" : "g"}</span>
                    </div>
                    <button onClick={() => setQuantity((quantity === "" ? 0 : quantity) + 50)} className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Plus className="w-6 h-6 stroke-[3]"/></button>
                 </div>
