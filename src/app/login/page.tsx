@@ -62,23 +62,37 @@ function LoginContent() {
       return;
     }
 
-    const { error } = await supabase
-      .from('profiles')
-      .insert([
-        {
-          id: user.id,
-          name,
-          age: age ? Number(age) : null,
-          gender: gender || null,
-          height: height ? Number(height) : null,
-          startingWeight: weight ? Number(weight) : null,
-          currentWeight: weight ? Number(weight) : null,
-        }
-      ]);
+    let profileError: any = null;
 
-    if (error) {
-      console.error(error);
-      toast.error(error.message || "Failed to create profile...");
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
+    const payload = {
+      id: user.id,
+      user_id: user.id,
+      name,
+      age: age ? Number(age) : null,
+      gender: gender || null,
+      height: height ? Number(height) : null,
+      starting_weight: weight ? Number(weight) : null,
+      current_weight: weight ? Number(weight) : null,
+    };
+
+    if (existingProfile) {
+      toast.info("Profile already exists. Updating your data...");
+      const { error } = await supabase.from("profiles").update(payload).eq("id", user.id);
+      profileError = error;
+    } else {
+      const { error } = await supabase.from("profiles").insert([payload]);
+      profileError = error;
+    }
+
+    if (profileError) {
+      console.error(profileError);
+      toast.error("Failed to save profile...");
       setLoading(false);
       return;
     }
@@ -88,7 +102,7 @@ function LoginContent() {
       updateProfile({ startingWeight: Number(weight), currentWeight: Number(weight) });
     }
 
-    toast.success("Account created successfully!");
+    toast.success(existingProfile ? "Profile updated!" : "Account created successfully!");
     router.push("/");
   };
 

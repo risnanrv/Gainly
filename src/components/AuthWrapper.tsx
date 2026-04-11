@@ -13,13 +13,18 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
   const [initializing, setInitializing] = useState(true);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const fetchedRef = useRef<string | null>(null);
+
   useEffect(() => {
     setMounted(true);
     
     // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        fetchUserData(session.user.id, session.user.email);
+        if (fetchedRef.current !== session.user.id) {
+          fetchedRef.current = session.user.id;
+          fetchUserData(session.user.id, session.user.email);
+        }
       } else {
         useStore.getState().clearData();
         if (auth.isAuthenticated) updateAuth({ isAuthenticated: false });
@@ -29,8 +34,12 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-         fetchUserData(session.user.id, session.user.email);
+         if (fetchedRef.current !== session.user.id) {
+           fetchedRef.current = session.user.id;
+           fetchUserData(session.user.id, session.user.email);
+         }
       } else {
+         fetchedRef.current = null;
          useStore.getState().clearData();
          updateAuth({ isAuthenticated: false });
          if (pathname !== "/login") router.replace("/login");
