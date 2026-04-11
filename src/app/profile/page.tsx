@@ -7,7 +7,7 @@ import { Check, Settings, Bell, LogOut, Info } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function ProfilePage() {
-  const { profile, updateProfile, targetCalories, targetProtein, setTargets, reminders, updateReminders } = useStore();
+  const { auth, profile, updateProfile, targetCalories, targetProtein, setTargets, reminders, updateReminders } = useStore();
   
   const [startingWeight, setStartingWeight] = useState(profile.startingWeight?.toString() || profile.currentWeight?.toString() || "");
   const [targetWeight, setTargetWeight] = useState(profile.targetWeight?.toString() || "");
@@ -22,7 +22,7 @@ export default function ProfilePage() {
   const recommendedCalories = Math.round(maintenance + dailySurplus);
   const recommendedProtein = Math.round(Number(targetWeight || 0) * 1.8);
 
-  const handleSaveGoals = () => {
+  const handleSaveGoals = async () => {
     updateProfile({
       startingWeight: Number(startingWeight),
       targetWeight: Number(targetWeight),
@@ -30,11 +30,28 @@ export default function ProfilePage() {
     });
     setManualCal(recommendedCalories.toString());
     setManualPro(recommendedProtein.toString());
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+       await supabase.from('profiles').update({
+          starting_weight: Number(startingWeight),
+          target_weight: Number(targetWeight),
+          weeks: Number(durationWeeks)
+       }).eq('id', user.id);
+    }
     toast.success("Goals updated!");
   };
 
-  const handleSaveTargets = () => {
+  const handleSaveTargets = async () => {
     setTargets(Number(manualCal), Number(manualPro));
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+       await supabase.from('profiles').update({
+          target_calories: Number(manualCal),
+          target_protein: Number(manualPro)
+       }).eq('id', user.id);
+    }
     toast.success("Daily targets updated!");
   };
 
@@ -43,6 +60,17 @@ export default function ProfilePage() {
       <header className="pt-4 pb-6">
         <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
         <p className="text-muted text-sm mt-1">Configure your body metrics.</p>
+        <div className="mt-4 p-4 bg-primary/10 rounded-2xl flex items-center gap-4">
+          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-xl font-bold text-background uppercase">
+            {auth.name?.charAt(0) || "U"}
+          </div>
+          <div>
+            <h2 className="font-bold">{auth.name || "User"}</h2>
+            <p className="text-xs text-muted flex items-center gap-2">
+               {auth.email} {auth.age ? `• ${auth.age} yrs` : ""}
+            </p>
+          </div>
+        </div>
       </header>
 
       <div className="space-y-6">
