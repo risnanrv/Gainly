@@ -465,14 +465,16 @@ function AddFoodContent() {
 
               <button
                 onClick={() => {
-                  if (selectedFood.isNewBarcode || (selectedFood.calories_per_100g === 0 && selectedFood.protein_per_100g > 0)) {
+                  if (selectedFood.isNewBarcode || (selectedFood.calories_per_100g === 0 && (selectedFood.protein_per_100g || 0) > 0) || (selectedFood.calories_per_100ml === 0 && (selectedFood.protein_per_100ml || 0) > 0)) {
                     addCustomFood({
                        name: selectedFood.name || "Custom Food",
                        unit: selectedFood.unit,
                        calories_per_100g: selectedFood.calories_per_100g || 0,
                        protein_per_100g: selectedFood.protein_per_100g || 0,
                        calories_per_unit: selectedFood.calories_per_unit,
-                       protein_per_unit: selectedFood.protein_per_unit
+                       protein_per_unit: selectedFood.protein_per_unit,
+                       calories_per_100ml: selectedFood.calories_per_100ml,
+                       protein_per_100ml: selectedFood.protein_per_100ml
                     });
                   }
                   handleAdd();
