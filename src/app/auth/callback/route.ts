@@ -29,7 +29,5 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  // Use the origin from the request or absolute Vercel URL
-  const redirectUrl = origin.includes("localhost") ? `${origin}${next}` : `https://gainly-seven.vercel.app${next}`;
-  return NextResponse.redirect(redirectUrl);
+  return NextResponse.redirect(new URL(next, origin));
 }

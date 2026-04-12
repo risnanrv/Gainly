@@ -38,7 +38,7 @@ function AddFoodContent() {
   const [barcodeQuery, setBarcodeQuery] = useState("");
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  const { logs, addFood, customFoods, addCustomFood } = useStore();
+  const { logs, addFood, customFoods, addCustomFood, hiddenDefaultFoodNames } = useStore();
   const today = getToday();
   const recentEntries = logs[today]?.entries || [];
 
@@ -54,7 +54,13 @@ function AddFoodContent() {
     });
   });
 
-  const fullDB = [...foodDB, ...customFoods].sort((a, b) => {
+  const catalogVisible = foodDB.filter(
+    (f) => !hiddenDefaultFoodNames.includes(f.name.toLowerCase())
+  );
+  const mergedByName = new Map<string, (typeof foodDB)[number] | ParsedFood>();
+  catalogVisible.forEach((f) => mergedByName.set(f.name.toLowerCase(), f));
+  customFoods.forEach((f) => mergedByName.set(f.name.toLowerCase(), f as ParsedFood));
+  const fullDB = Array.from(mergedByName.values()).sort((a, b) => {
     return (freqMap[b.name] || 0) - (freqMap[a.name] || 0);
   });
 
@@ -331,7 +337,7 @@ function AddFoodContent() {
 
             {filteredFoods.map((food) => (
               <button
-                key={food.name}
+                key={"id" in food && (food as { id?: string }).id ? (food as { id?: string }).id : food.name}
                 onClick={() => {
                    setSelectedFood(food as ParsedFood); 
                    setQuantity("");
@@ -343,7 +349,9 @@ function AddFoodContent() {
                   <span className="text-xs text-muted font-medium">
                     {food.unit === "count"
                       ? `${food.calories_per_unit} kcal / ${food.protein_per_unit || 0}g`
-                      : `${food.calories_per_100g} kcal / 100g`}
+                      : food.unit === "ml"
+                        ? `${food.calories_per_100ml ?? 0} kcal / 100ml`
+                        : `${food.calories_per_100g ?? 0} kcal / 100g`}
                   </span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-muted opacity-50" />

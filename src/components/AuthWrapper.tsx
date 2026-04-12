@@ -1,9 +1,37 @@
 "use client";
 
 import { useStore } from "@/store/useStore";
+import type { DailySummary, ExpenseCategory, ExpenseEntry, FoodEntry, FoodEntryDB } from "@/store/useStore";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+
+function normalizeLogEntries(raw: unknown): FoodEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((e: Record<string, unknown>) => ({
+    id: typeof e.id === "string" && e.id ? e.id : crypto.randomUUID(),
+    name: String(e.name ?? ""),
+    calories: Number(e.calories ?? 0),
+    protein: Number(e.protein ?? 0),
+    timestamp: typeof e.timestamp === "number" ? e.timestamp : Date.now(),
+  }));
+}
+
+function mapFoodRow(row: Record<string, unknown>): FoodEntryDB {
+  const created = row.created_at ? new Date(String(row.created_at)).getTime() : Date.now();
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    unit: (row.unit === "count" || row.unit === "ml" || row.unit === "grams" ? row.unit : "grams") as FoodEntryDB["unit"],
+    calories_per_100g: row.calories_per_100g != null ? Number(row.calories_per_100g) : undefined,
+    protein_per_100g: row.protein_per_100g != null ? Number(row.protein_per_100g) : undefined,
+    calories_per_unit: row.calories_per_unit != null ? Number(row.calories_per_unit) : undefined,
+    protein_per_unit: row.protein_per_unit != null ? Number(row.protein_per_unit) : undefined,
+    calories_per_100ml: row.calories_per_100ml != null ? Number(row.calories_per_100ml) : undefined,
+    protein_per_100ml: row.protein_per_100ml != null ? Number(row.protein_per_100ml) : undefined,
+    timestamp: created,
+  };
+}
 
 export default function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { auth, updateAuth, updateProfile } = useStore();
@@ -11,103 +39,181 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [initializing, setInitializing] = useState(true);
-  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const fetchedRef = useRef<string | null>(null);
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSessionUserId = useRef<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    
-    // Check initial session
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        if (fetchedRef.current !== session.user.id) {
-          fetchedRef.current = session.user.id;
-          fetchUserData(session.user.id, session.user.email);
-        }
+        void handleSession(session.user.id, session.user.email ?? undefined);
       } else {
+        lastSessionUserId.current = null;
         useStore.getState().clearData();
-        if (auth.isAuthenticated) updateAuth({ isAuthenticated: false });
+        if (useStore.getState().auth.isAuthenticated) updateAuth({ isAuthenticated: false });
         setInitializing(false);
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-         if (fetchedRef.current !== session.user.id) {
-           fetchedRef.current = session.user.id;
-           fetchUserData(session.user.id, session.user.email);
-         }
+        void handleSession(session.user.id, session.user.email ?? undefined);
       } else {
-         fetchedRef.current = null;
-         useStore.getState().clearData();
-         updateAuth({ isAuthenticated: false });
-         if (pathname !== "/login") router.replace("/login");
+        lastSessionUserId.current = null;
+        useStore.getState().clearData();
+        updateAuth({ isAuthenticated: false });
+        if (pathname !== "/login") router.replace("/login");
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  const handleSession = async (userId: string, email?: string) => {
+    const switched = lastSessionUserId.current !== null && lastSessionUserId.current !== userId;
+    lastSessionUserId.current = userId;
+    if (switched) {
+      useStore.getState().clearData();
+    }
+    await fetchUserData(userId, email);
+  };
+
   const fetchUserData = async (userId: string, email?: string) => {
     try {
-      // CLEAR all old device data immediately before fetching to ensure isolation constraints
-      useStore.getState().clearData();
-      
-      const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', userId).single();
-      const logsResp = await supabase.from('logs').select('*').eq('user_id', userId);
-      const weightsResp = await supabase.from('weights').select('*').eq('user_id', userId);
-      const foodsResp = await supabase.from('foods').select('*').eq('user_id', userId);
-      
-      let stateUpdates: any = {};
-      
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .or(`id.eq.${userId},user_id.eq.${userId}`)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("profiles fetch:", profileError.message);
+      }
+
+      const logsResp = await supabase.from("logs").select("*").eq("user_id", userId);
+      if (logsResp.error) console.error("logs fetch:", logsResp.error.message);
+
+      const weightsResp = await supabase.from("weights").select("*").eq("user_id", userId);
+      if (weightsResp.error) console.error("weights fetch:", weightsResp.error.message);
+
+      const foodsResp = await supabase.from("foods").select("*").eq("user_id", userId);
+      if (foodsResp.error) console.error("foods fetch:", foodsResp.error.message);
+
+      const expensesResp = await supabase.from("expenses").select("*").eq("user_id", userId);
+      if (expensesResp.error) console.error("expenses fetch:", expensesResp.error.message);
+
+      let categoriesResp = await supabase.from("expense_categories").select("*").eq("user_id", userId);
+      if (categoriesResp.error) console.error("expense_categories fetch:", categoriesResp.error.message);
+
+      let expenseCategories: ExpenseCategory[] = (categoriesResp.data || []).map((c: Record<string, unknown>) => ({
+        id: String(c.id),
+        name: String(c.name),
+      }));
+
+      if (!expenseCategories.length && !categoriesResp.error) {
+        const seed = [
+          { user_id: userId, name: "Gym" },
+          { user_id: userId, name: "Diet Foods" },
+        ];
+        const { data: inserted, error: seedErr } = await supabase.from("expense_categories").insert(seed).select();
+        if (seedErr) {
+          console.error("seed expense_categories:", seedErr.message);
+        } else if (inserted) {
+          expenseCategories = inserted.map((c: Record<string, unknown>) => ({
+            id: String(c.id),
+            name: String(c.name),
+          }));
+        }
+      }
+
+      const stateUpdates: Partial<ReturnType<typeof useStore.getState>> = {};
+
       if (profile) {
-        updateAuth({ isAuthenticated: true, email: email, name: profile.name, age: profile.age });
-        
-        // Push actual database values, strictly bypassing any fake logical defaults
-        if (profile.target_calories !== undefined) stateUpdates.targetCalories = profile.target_calories;
-        if (profile.target_protein !== undefined) stateUpdates.targetProtein = profile.target_protein;
-        
-        stateUpdates.profile = { 
-           startingWeight: profile.starting_weight ?? null, 
-           currentWeight: profile.current_weight ?? null, 
-           targetWeight: profile.target_weight ?? null, 
-           weeks: profile.weeks ?? null 
+        updateAuth({
+          isAuthenticated: true,
+          email: email,
+          name: profile.name ?? undefined,
+          age: profile.age ?? undefined,
+        });
+
+        if (profile.target_calories != null) stateUpdates.targetCalories = Number(profile.target_calories);
+        if (profile.target_protein != null) stateUpdates.targetProtein = Number(profile.target_protein);
+
+        stateUpdates.profile = {
+          startingWeight: profile.starting_weight ?? null,
+          currentWeight: profile.current_weight ?? null,
+          targetWeight: profile.target_weight ?? null,
+          weeks: profile.weeks ?? null,
         };
+
+        const hidden = profile.hidden_foods;
+        if (Array.isArray(hidden)) {
+          stateUpdates.hiddenDefaultFoodNames = hidden.map((n: string) => String(n).toLowerCase());
+        }
+
+        if (typeof profile.daily_reminder_enabled === "boolean") {
+          stateUpdates.reminders = { dailySummary: profile.daily_reminder_enabled };
+        }
       } else {
         updateAuth({ isAuthenticated: true, email: email });
         if (pathname !== "/login") router.replace("/login?setup=true");
       }
-      
-      if (logsResp.data && logsResp.data.length > 0) {
-        stateUpdates.logs = {};
-        logsResp.data.forEach((log: any) => {
-           stateUpdates.logs[log.date] = {
-             totalCalories: log.total_calories,
-             totalProtein: log.total_protein,
-             entries: log.entries
-           };
+
+      if (!logsResp.error && logsResp.data) {
+        const logs: Record<string, DailySummary> = {};
+        logsResp.data.forEach((log: Record<string, unknown>) => {
+          const entries = normalizeLogEntries(log.entries);
+          const totalCalories = Number(log.total_calories ?? 0);
+          const totalProtein = Number(log.total_protein ?? 0);
+          logs[String(log.date)] = { totalCalories, totalProtein, entries };
         });
+        stateUpdates.logs = logs;
       }
-      
-      if (weightsResp.data && weightsResp.data.length > 0) {
-        stateUpdates.weightLogs = {};
-        weightsResp.data.forEach((w: any) => {
-           stateUpdates.weightLogs[w.date] = w.weight;
+
+      if (!weightsResp.error && weightsResp.data) {
+        const weightLogs: Record<string, number> = {};
+        weightsResp.data.forEach((w: Record<string, unknown>) => {
+          weightLogs[String(w.date)] = Number(w.weight);
         });
+        stateUpdates.weightLogs = weightLogs;
       }
-      
-      if (foodsResp.data && foodsResp.data.length > 0) {
-        stateUpdates.customFoods = foodsResp.data;
+
+      if (!foodsResp.error && foodsResp.data) {
+        stateUpdates.customFoods = foodsResp.data.map((row) => mapFoodRow(row as Record<string, unknown>));
       }
-      
+
+      if (!expensesResp.error && expensesResp.data) {
+        const expenses: Record<string, ExpenseEntry[]> = {};
+        expensesResp.data.forEach((row: Record<string, unknown>) => {
+          const date = String(row.date);
+          const ts = row.created_at ? new Date(String(row.created_at)).getTime() : Date.now();
+          const entry: ExpenseEntry = {
+            id: String(row.id),
+            amount: Number(row.amount),
+            category: String(row.category),
+            date,
+            timestamp: ts,
+          };
+          if (!expenses[date]) expenses[date] = [];
+          expenses[date].push(entry);
+        });
+        stateUpdates.expenses = expenses;
+      }
+
+      if (expenseCategories.length) {
+        stateUpdates.expenseCategories = expenseCategories;
+      }
+
       if (Object.keys(stateUpdates).length > 0) {
         useStore.setState((state) => ({ ...state, ...stateUpdates }));
       }
-      
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Error fetching user data:", e);
-      if (e?.code === 'PGRST116') {
+      const err = e as { code?: string };
+      if (err?.code === "PGRST116") {
         updateAuth({ isAuthenticated: true, email: email });
         if (pathname !== "/login") router.replace("/login?setup=true");
       }
@@ -116,79 +222,105 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
     }
   };
 
-  // Setup generic sync for user data payload
   useEffect(() => {
     if (!mounted || initializing || !auth.isAuthenticated) return;
-    
-    // Subscribe to store changes to sync with Supabase
-    const unsub = useStore.subscribe((state, prevState) => {
-      // Avoid syncing auth object or unmounted
-      if (!state.auth.isAuthenticated) return;
-      
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-      
-      syncTimeoutRef.current = setTimeout(async () => {
-         const { data: { user } } = await supabase.auth.getUser();
-         if (user) {
-            // Sync individual tables according to security rules
-            // 1. Profiles
-            await supabase.from('profiles').update({
-               starting_weight: state.profile.startingWeight,
-               current_weight: state.profile.currentWeight,
-               target_weight: state.profile.targetWeight,
-               weeks: state.profile.weeks,
-               target_calories: state.targetCalories,
-               target_protein: state.targetProtein
-            }).eq('user_id', user.id);
-            
-            // 2. Logs
-            const logsToUpsert = Object.entries(state.logs).map(([date, log]) => ({
-               user_id: user.id,
-               date,
-               total_calories: log.totalCalories,
-               total_protein: log.totalProtein,
-               entries: log.entries
-            }));
-            if (logsToUpsert.length > 0) {
-               await supabase.from('logs').upsert(logsToUpsert, { onConflict: 'user_id, date' }).eq('user_id', user.id);
-            }
-            
-            // 3. Weights
-            const weightsToUpsert = Object.entries(state.weightLogs).map(([date, weight]) => ({
-               user_id: user.id,
-               date,
-               weight
-            }));
-            if (weightsToUpsert.length > 0) {
-               await supabase.from('weights').upsert(weightsToUpsert, { onConflict: 'user_id, date' }).eq('user_id', user.id);
-            }
 
-            // 4. Foods
-            const foodsToUpsert = state.customFoods.map((food) => ({
-               id: food.id && food.id.length > 8 ? food.id : undefined, // If local ID is short hash, omit or let DB gen uuid
-               user_id: user.id,
-               name: food.name,
-               unit: food.unit,
-               calories_per_100g: food.calories_per_100g,
-               protein_per_100g: food.protein_per_100g,
-               calories_per_unit: food.calories_per_unit,
-               protein_per_unit: food.protein_per_unit,
-               calories_per_100ml: food.calories_per_100ml,
-               protein_per_100ml: food.protein_per_100ml
-            }));
-            if (foodsToUpsert.length > 0) {
-               await supabase.from('foods').upsert(foodsToUpsert, { onConflict: 'user_id, name' }).eq('user_id', user.id);
-            }
-         }
-      }, 2000); // Debounce for 2 seconds
+    const unsub = useStore.subscribe(() => {
+      if (!useStore.getState().auth.isAuthenticated) return;
+
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+
+      syncTimeoutRef.current = setTimeout(async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const state = useStore.getState();
+
+        const { error: profileErr } = await supabase
+          .from("profiles")
+          .update({
+            starting_weight: state.profile.startingWeight,
+            current_weight: state.profile.currentWeight,
+            target_weight: state.profile.targetWeight,
+            weeks: state.profile.weeks,
+            target_calories: state.targetCalories,
+            target_protein: state.targetProtein,
+            hidden_foods: state.hiddenDefaultFoodNames,
+            daily_reminder_enabled: state.reminders.dailySummary,
+          })
+          .eq("id", user.id);
+
+        if (profileErr) console.error("sync profiles:", profileErr.message);
+
+        const logsToUpsert = Object.entries(state.logs).map(([date, log]) => ({
+          user_id: user.id,
+          date,
+          total_calories: log.totalCalories,
+          total_protein: log.totalProtein,
+          entries: log.entries,
+        }));
+        if (logsToUpsert.length > 0) {
+          const { error } = await supabase.from("logs").upsert(logsToUpsert, {
+            onConflict: "user_id,date",
+          });
+          if (error) console.error("sync logs:", error.message);
+        }
+
+        const weightsToUpsert = Object.entries(state.weightLogs).map(([date, weight]) => ({
+          user_id: user.id,
+          date,
+          weight,
+        }));
+        if (weightsToUpsert.length > 0) {
+          const { error } = await supabase.from("weights").upsert(weightsToUpsert, {
+            onConflict: "user_id,date",
+          });
+          if (error) console.error("sync weights:", error.message);
+        }
+
+        const foodsToUpsert = state.customFoods.map((food) => ({
+          id: food.id,
+          user_id: user.id,
+          name: food.name,
+          unit: food.unit,
+          calories_per_100g: food.calories_per_100g ?? null,
+          protein_per_100g: food.protein_per_100g ?? null,
+          calories_per_unit: food.calories_per_unit ?? null,
+          protein_per_unit: food.protein_per_unit ?? null,
+          calories_per_100ml: food.calories_per_100ml ?? null,
+          protein_per_100ml: food.protein_per_100ml ?? null,
+        }));
+        if (foodsToUpsert.length > 0) {
+          const { error } = await supabase.from("foods").upsert(foodsToUpsert, {
+            onConflict: "user_id,name",
+          });
+          if (error) console.error("sync foods:", error.message);
+        }
+
+        const expenseRows = Object.values(state.expenses)
+          .flat()
+          .map((e) => ({
+            id: e.id,
+            user_id: user.id,
+            date: e.date,
+            amount: e.amount,
+            category: e.category,
+          }));
+        if (expenseRows.length > 0) {
+          const { error } = await supabase.from("expenses").upsert(expenseRows, { onConflict: "id" });
+          if (error) console.error("sync expenses:", error.message);
+        }
+      }, 2000);
     });
-    
+
     return () => unsub();
   }, [mounted, initializing, auth.isAuthenticated]);
 
   useEffect(() => {
     if (!mounted || initializing) return;
-    
+
     if (!auth.isAuthenticated && pathname !== "/login") {
       router.replace("/login");
     } else if (auth.isAuthenticated && pathname === "/login") {

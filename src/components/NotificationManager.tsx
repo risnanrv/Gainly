@@ -13,27 +13,31 @@ export function NotificationManager() {
 
     const interval = setInterval(() => {
       const now = new Date();
-      // Check if it's 21:30 (9:30 PM)
-      if (now.getHours() === 21 && now.getMinutes() === 30) {
+      const h = now.getHours();
+      const m = now.getMinutes();
+      // 9:30 PM local — allow a 2-minute window so we do not miss the tick on slow devices
+      if (h === 21 && m >= 30 && m <= 31) {
         const todayStr = getToday();
-        
-        // Prevent double notification
+
         if (lastNotified.current === todayStr) return;
 
         const summary = logs[todayStr] || { totalCalories: 0, totalProtein: 0 };
-        const safeCalories = targetCalories || 0;
-        const safeProtein = targetProtein || 0;
-        const reachedTarget = summary.totalCalories >= safeCalories;
-        
-        const title = reachedTarget ? "Great job!" : "You missed your target";
-        const body = `You ate ${Math.round(summary.totalCalories)}/${safeCalories} kcal and ${Math.round(summary.totalProtein)}/${safeProtein}g protein today.`;
+        const safeCalories = targetCalories ?? 0;
+        const safeProtein = targetProtein ?? 0;
+
+        const title = "Gainly";
+        const detail =
+          safeCalories > 0 || safeProtein > 0
+            ? `Today so far: ${Math.round(summary.totalCalories)} kcal · ${Math.round(summary.totalProtein)}g protein (targets ${safeCalories} kcal · ${safeProtein}g).`
+            : "";
+        const body = ["Check your calories & protein intake today.", detail].filter(Boolean).join(" ");
 
         if ("Notification" in window && Notification.permission === "granted") {
-          new Notification(title, { body, icon: "/icon-192x192.png" });
+          new Notification(title, { body, icon: "/icon-192x192.png", tag: "gainly-daily" });
           lastNotified.current = todayStr;
         }
       }
-    }, 60000); // Check every minute
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [reminders.dailySummary, logs, targetCalories, targetProtein]);

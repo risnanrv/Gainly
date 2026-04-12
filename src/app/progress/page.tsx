@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/store/useStore";
+import { dateToLocalKey } from "@/lib/dateUtils";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp, TrendingDown, Target, Plus, ChevronDown, ChevronRight, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -33,10 +34,10 @@ export default function ProgressPage() {
   let weeklyProtein = 0;
   let daysLogged = 0;
 
-  const last7Days = Array.from({length: 7}, (_, i) => {
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    return d.toISOString().split('T')[0];
+    return dateToLocalKey(d);
   });
 
   last7Days.forEach(date => {

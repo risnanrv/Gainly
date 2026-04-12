@@ -9,7 +9,6 @@ import { useEffect, useState } from "react";
 import { Bell, Flame, Info, History } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -26,11 +25,15 @@ export default function Home() {
   const today = getToday();
   const todaySummary = logs[today] || { totalCalories: 0, totalProtein: 0, entries: [] };
 
-  const safeTargetCalories = targetCalories || 0;
-  const safeTargetProtein = targetProtein || 0;
-  
-  const progress = safeTargetCalories > 0 ? (todaySummary.totalCalories / safeTargetCalories) * 100 : 0;
-  const proteinProgress = safeTargetProtein > 0 ? (todaySummary.totalProtein / safeTargetProtein) * 100 : 0;
+  const safeTargetCalories = targetCalories ?? 0;
+  const safeTargetProtein = targetProtein ?? 0;
+  const hasCalorieTarget = targetCalories != null && targetCalories > 0;
+  const hasProteinTarget = targetProtein != null && targetProtein > 0;
+
+  const progress =
+    hasCalorieTarget && safeTargetCalories > 0 ? (todaySummary.totalCalories / safeTargetCalories) * 100 : 0;
+  const proteinProgress =
+    hasProteinTarget && safeTargetProtein > 0 ? (todaySummary.totalProtein / safeTargetProtein) * 100 : 0;
 
   const remainingCals = Math.max(0, safeTargetCalories - todaySummary.totalCalories);
   const remainingProtein = Math.max(0, safeTargetProtein - todaySummary.totalProtein);
@@ -54,16 +57,17 @@ export default function Home() {
     d.setDate(d.getDate() - 1);
   }
 
-  // Basic AI Suggestions logic
   let suggestion = "";
-  if (remainingProtein > 30 && remainingCals < 500) {
-    suggestion = "You are low on protein but high on calories. Focus on lean protein sources.";
-  } else if (remainingCals <= 0) {
-    suggestion = "You've exceeded calorie limits! Focus on hydration and rest.";
-  } else if (remainingCals > 0 || remainingProtein > 0) {
-    suggestion = "You still have room for more calories and protein today.";
+  if (!hasCalorieTarget && !hasProteinTarget) {
+    suggestion = "Set calorie and protein targets in Profile to track progress against your goals.";
+  } else if (hasCalorieTarget && remainingCals <= 0) {
+    suggestion = "You are at or above your calorie target for today. Prioritise balanced meals tomorrow.";
+  } else if (hasProteinTarget && hasCalorieTarget && remainingProtein > 25 && remainingCals < 400) {
+    suggestion = "You still need protein but have limited calories left — lean sources (fish, low-fat dairy, legumes) work well.";
+  } else if ((hasCalorieTarget && remainingCals > 0) || (hasProteinTarget && remainingProtein > 0)) {
+    suggestion = "You have headroom on your targets today — log meals in Add to stay on track.";
   } else {
-    suggestion = "Doing great! Keep tracking.";
+    suggestion = "Nice work — you are close to your nutrition targets for today.";
   }
 
   let motivation = "Let's gain some mass today!";
@@ -111,15 +115,21 @@ export default function Home() {
               {Math.round(todaySummary.totalCalories)}
             </span>
             <span className="text-muted text-sm uppercase tracking-widest font-medium mt-1">
-              / {targetCalories} kcal
+              / {hasCalorieTarget ? `${targetCalories} kcal` : "— kcal"}
             </span>
-            {remainingCals > 0 ? (
-              <span className="mt-2 text-xs font-medium text-muted bg-surface px-3 py-1.5 rounded-full border border-white/5">
-                <span className="text-foreground">{Math.round(remainingCals)}</span> cals left
-              </span>
+            {hasCalorieTarget ? (
+              remainingCals > 0 ? (
+                <span className="mt-2 text-xs font-medium text-muted bg-surface px-3 py-1.5 rounded-full border border-white/5">
+                  <span className="text-foreground">{Math.round(remainingCals)}</span> cals left
+                </span>
+              ) : (
+                <span className="mt-2 text-xs font-semibold text-highlight bg-highlight/10 px-3 py-1.5 rounded-full">
+                  Goal Reached!
+                </span>
+              )
             ) : (
-              <span className="mt-2 text-xs font-semibold text-highlight bg-highlight/10 px-3 py-1.5 rounded-full">
-                Goal Reached!
+              <span className="mt-2 text-xs font-medium text-muted bg-surface px-3 py-1.5 rounded-full border border-white/5">
+                Set a target in Profile
               </span>
             )}
           </div>
@@ -131,9 +141,11 @@ export default function Home() {
           <p className="text-muted text-xs uppercase tracking-wider mb-2">Protein</p>
           <div className="flex items-end gap-2">
             <span className="text-3xl font-bold">{Math.round(todaySummary.totalProtein)}</span>
-            <span className="text-sm text-muted mb-1 pb-0.5">/ {targetProtein}g</span>
+            <span className="text-sm text-muted mb-1 pb-0.5">/ {hasProteinTarget ? `${targetProtein}g` : "—"}</span>
           </div>
-          {remainingProtein > 0 && <span className="text-[10px] text-muted mt-1">{Math.round(remainingProtein)}g more needed</span>}
+          {hasProteinTarget && remainingProtein > 0 && (
+            <span className="text-[10px] text-muted mt-1">{Math.round(remainingProtein)}g more needed</span>
+          )}
           <div className="w-full bg-white/5 h-2 rounded-full mt-4 overflow-hidden">
             <div
               className="bg-primary h-full rounded-full transition-all duration-1000"

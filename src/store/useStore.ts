@@ -1,5 +1,11 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { supabase } from "@/lib/supabase";
+
+function newId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+}
 
 export interface FoodEntry {
   id: string;
@@ -45,7 +51,7 @@ export interface Reminders {
 export interface FoodEntryDB {
   id: string;
   name: string;
-  unit: 'count' | 'grams' | 'ml';
+  unit: "count" | "grams" | "ml";
   calories_per_unit?: number;
   protein_per_unit?: number;
   calories_per_100g?: number;
@@ -70,6 +76,8 @@ interface AppState {
   expenses: Record<string, ExpenseEntry[]>;
   expenseCategories: ExpenseCategory[];
   customFoods: FoodEntryDB[];
+  /** Lowercased names hidden from bundled catalog (stored in profiles.hidden_foods). */
+  hiddenDefaultFoodNames: string[];
   profile: UserProfile;
   auth: UserAuth;
   reminders: Reminders;
@@ -80,12 +88,12 @@ interface AppState {
   updateReminders: (reminders: Partial<Reminders>) => void;
   addFood: (date: string, entry: Omit<FoodEntry, "id" | "timestamp">) => void;
   removeFood: (date: string, id: string) => void;
-  
-  // Custom Food DB CRUD
+
   addCustomFood: (food: Omit<FoodEntryDB, "id" | "timestamp">) => void;
   updateCustomFood: (id: string, updates: Partial<FoodEntryDB>) => void;
   deleteCustomFood: (id: string) => void;
-  
+  hideDefaultFood: (name: string) => void;
+
   addWeight: (date: string, weight: number) => void;
   addExpense: (date: string, entry: Omit<ExpenseEntry, "id" | "timestamp" | "date">) => void;
   updateExpense: (date: string, id: string, updates: Partial<ExpenseEntry>) => void;
@@ -95,6 +103,12 @@ interface AppState {
   clearData: () => void;
 }
 
+/** Stable client-side UUIDs until hydrated from Supabase after auth. */
+const defaultExpenseCategories = (): ExpenseCategory[] => [
+  { id: "00000000-0000-4000-8000-000000000001", name: "Gym" },
+  { id: "00000000-0000-4000-8000-000000000002", name: "Diet Foods" },
+];
+
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
@@ -103,11 +117,9 @@ export const useStore = create<AppState>()(
       logs: {},
       weightLogs: {},
       expenses: {},
-      expenseCategories: [
-        { id: "cat_gym", name: "Gym" },
-        { id: "cat_diet", name: "Diet Foods" }
-      ],
+      expenseCategories: defaultExpenseCategories(),
       customFoods: [],
+      hiddenDefaultFoodNames: [],
       profile: {
         startingWeight: null,
         currentWeight: null,
@@ -120,103 +132,188 @@ export const useStore = create<AppState>()(
       reminders: {
         dailySummary: false,
       },
-      setTargets: (calories, protein) =>
-        set({ targetCalories: calories, targetProtein: protein }),
-      updateProfile: (updates) =>
-        set((state) => ({ profile: { ...state.profile, ...updates } })),
-      updateAuth: (updates) =>
-        set((state) => ({ auth: { ...state.auth, ...updates } })),
-      logout: () => set({ auth: { isAuthenticated: false } }),
-      clearData: () => 
-        set({ 
-           logs: {}, 
-           weightLogs: {}, 
-           expenses: {}, 
-           expenseCategories: [{ id: "cat_gym", name: "Gym" }, { id: "cat_diet", name: "Diet Foods" }], 
-           customFoods: [],
-           profile: { startingWeight: null, currentWeight: null, targetWeight: null, weeks: null },
-           targetCalories: null,
-           targetProtein: null
+      setTargets: (calories, protein) => set({ targetCalories: calories, targetProtein: protein }),
+      updateProfile: (updates) => set((state) => ({ profile: { ...state.profile, ...updates } })),
+      updateAuth: (updates) => set((state) => ({ auth: { ...state.auth, ...updates } })),
+      logout: () =>
+        set({
+          auth: { isAuthenticated: false },
+          logs: {},
+          weightLogs: {},
+          expenses: {},
+          expenseCategories: defaultExpenseCategories(),
+          customFoods: [],
+          hiddenDefaultFoodNames: [],
+          profile: {
+            startingWeight: null,
+            currentWeight: null,
+            targetWeight: null,
+            weeks: null,
+          },
+          targetCalories: null,
+          targetProtein: null,
+          reminders: { dailySummary: false },
+        }),
+      clearData: () =>
+        set({
+          logs: {},
+          weightLogs: {},
+          expenses: {},
+          expenseCategories: defaultExpenseCategories(),
+          customFoods: [],
+          hiddenDefaultFoodNames: [],
+          profile: {
+            startingWeight: null,
+            currentWeight: null,
+            targetWeight: null,
+            weeks: null,
+          },
+          targetCalories: null,
+          targetProtein: null,
+          reminders: { dailySummary: false },
         }),
       updateReminders: (updates) =>
         set((state) => ({ reminders: { ...state.reminders, ...updates } })),
-      
+
       addCustomFood: (food) =>
         set((state) => {
-           // Prevent duplicate names locally
-           if (state.customFoods.some(f => f.name.toLowerCase() === food.name.toLowerCase())) {
-              return state;
-           }
-           return {
-             customFoods: [...state.customFoods, { ...food, id: Math.random().toString(36).substring(7), timestamp: Date.now() }]
-           };
+          if (state.customFoods.some((f) => f.name.toLowerCase() === food.name.toLowerCase())) {
+            return state;
+          }
+          return {
+            customFoods: [
+              ...state.customFoods,
+              { ...food, id: newId(), timestamp: Date.now() },
+            ],
+          };
         }),
       updateCustomFood: (id, updates) =>
         set((state) => ({
-          customFoods: state.customFoods.map(f => f.id === id ? { ...f, ...updates } : f)
+          customFoods: state.customFoods.map((f) => (f.id === id ? { ...f, ...updates } : f)),
         })),
-      deleteCustomFood: (id) =>
+      deleteCustomFood: (id) => {
+        void (async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (user) {
+            const { error } = await supabase.from("foods").delete().eq("id", id).eq("user_id", user.id);
+            if (error) console.error("deleteCustomFood:", error.message);
+          }
+        })();
         set((state) => ({
-          customFoods: state.customFoods.filter(f => f.id !== id)
-        })),
+          customFoods: state.customFoods.filter((f) => f.id !== id),
+        }));
+      },
+      hideDefaultFood: (name) =>
+        set((state) => {
+          const key = name.trim().toLowerCase();
+          if (!key || state.hiddenDefaultFoodNames.includes(key)) return state;
+          return { hiddenDefaultFoodNames: [...state.hiddenDefaultFoodNames, key] };
+        }),
+
       addWeight: (date, weight) =>
         set((state) => ({
           weightLogs: { ...state.weightLogs, [date]: weight },
-          profile: { ...state.profile, currentWeight: weight }
+          profile: { ...state.profile, currentWeight: weight },
         })),
       addExpense: (date, entry) =>
         set((state) => {
           const dayExpenses = state.expenses[date] || [];
-          const newId = Math.random().toString(36).substring(7);
+          const newIdVal = newId();
           return {
             expenses: {
               ...state.expenses,
-              [date]: [...dayExpenses, { ...entry, id: newId, timestamp: Date.now(), date }]
-            }
+              [date]: [...dayExpenses, { ...entry, id: newIdVal, timestamp: Date.now(), date }],
+            },
           };
         }),
-      updateExpense: (date, id, updates) => 
+      updateExpense: (date, id, updates) =>
         set((state) => {
           const dayExpenses = state.expenses[date] || [];
           return {
             expenses: {
               ...state.expenses,
-              [date]: dayExpenses.map(e => e.id === id ? { ...e, ...updates } : e)
-            }
+              [date]: dayExpenses.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+            },
           };
         }),
-      removeExpense: (date, id) =>
+      removeExpense: (date, id) => {
+        void (async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (user) {
+            const { error } = await supabase.from("expenses").delete().eq("id", id).eq("user_id", user.id);
+            if (error) console.error("removeExpense:", error.message);
+          }
+        })();
         set((state) => {
-           const dayExpenses = state.expenses[date] || [];
-           return {
-             expenses: {
-               ...state.expenses,
-               [date]: dayExpenses.filter(e => e.id !== id)
-             }
-           };
-        }),
-      addExpenseCategory: (name) =>
-        set((state) => {
-           if (state.expenseCategories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-             return state;
-           }
-           return {
-             expenseCategories: [
-               ...state.expenseCategories, 
-               { id: `cat_${Math.random().toString(36).substring(7)}`, name }
-             ]
-           }
-        }),
-      removeExpenseCategory: (id) =>
+          const dayExpenses = state.expenses[date] || [];
+          return {
+            expenses: {
+              ...state.expenses,
+              [date]: dayExpenses.filter((e) => e.id !== id),
+            },
+          };
+        });
+      },
+      addExpenseCategory: (name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        void (async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (user) {
+            const { data, error } = await supabase
+              .from("expense_categories")
+              .insert({ user_id: user.id, name: trimmed })
+              .select("id, name")
+              .single();
+            if (!error && data) {
+              set((state) => {
+                if (state.expenseCategories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
+                  return state;
+                }
+                return { expenseCategories: [...state.expenseCategories, { id: data.id, name: data.name }] };
+              });
+              return;
+            }
+            if (error) console.error("addExpenseCategory:", error.message);
+          }
+          set((state) => {
+            if (state.expenseCategories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
+              return state;
+            }
+            return { expenseCategories: [...state.expenseCategories, { id: newId(), name: trimmed }] };
+          });
+        })();
+      },
+      removeExpenseCategory: (id) => {
+        void (async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (user) {
+            const { error } = await supabase
+              .from("expense_categories")
+              .delete()
+              .eq("id", id)
+              .eq("user_id", user.id);
+            if (error) console.error("removeExpenseCategory:", error.message);
+          }
+        })();
         set((state) => ({
-           expenseCategories: state.expenseCategories.filter(c => c.id !== id)
-        })),
+          expenseCategories: state.expenseCategories.filter((c) => c.id !== id),
+        }));
+      },
       addFood: (date, entry) =>
         set((state) => {
           const currentDay = state.logs[date] || { totalCalories: 0, totalProtein: 0, entries: [] };
-          const newEntry = {
+          const newEntry: FoodEntry = {
             ...entry,
-            id: Math.random().toString(36).substring(7),
+            id: newId(),
             timestamp: Date.now(),
           };
           return {
@@ -234,7 +331,7 @@ export const useStore = create<AppState>()(
         set((state) => {
           const currentDay = state.logs[date];
           if (!currentDay) return state;
-          
+
           const entryToRemove = currentDay.entries.find((e) => e.id === id);
           if (!entryToRemove) return state;
 
@@ -252,6 +349,20 @@ export const useStore = create<AppState>()(
     }),
     {
       name: "gainly-storage",
+      merge: (persisted, current) => {
+        const p = persisted as Partial<AppState>;
+        const uuidRe =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        const cats = p.expenseCategories;
+        const expenseCategories =
+          cats?.length && cats.every((c) => uuidRe.test(c.id)) ? cats : defaultExpenseCategories();
+        return {
+          ...current,
+          ...(p as object),
+          hiddenDefaultFoodNames: p.hiddenDefaultFoodNames ?? [],
+          expenseCategories,
+        };
+      },
     }
   )
 );

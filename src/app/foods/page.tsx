@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useStore } from "@/store/useStore";
+import { useStore, type FoodEntryDB } from "@/store/useStore";
 import foodDB from "@/data/foods.json";
 import { Plus, Edit2, Trash2, Search, X, Check, ChevronLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,15 +11,20 @@ import { useRouter } from "next/navigation";
 
 export default function FoodsPage() {
   const router = useRouter();
-  const { customFoods, addCustomFood, updateCustomFood, deleteCustomFood } = useStore();
+  const { customFoods, addCustomFood, updateCustomFood, deleteCustomFood, hiddenDefaultFoodNames, hideDefaultFood } =
+    useStore();
   const [search, setSearch] = useState("");
   const [editingFood, setEditingFood] = useState<any>(null);
   const [isAdding, setIsAdding] = useState(false);
 
-  // Merge the base DB and custom overriding foods
-  const baseMap = new Map();
-  foodDB.forEach(f => baseMap.set(f.name.toLowerCase(), f));
-  customFoods.forEach(f => baseMap.set(f.name.toLowerCase(), f));
+  // Merge bundled catalog (minus hidden) with user-owned rows from Supabase
+  const baseMap = new Map<string, (typeof foodDB)[number] | FoodEntryDB>();
+  foodDB.forEach((f) => {
+    if (!hiddenDefaultFoodNames.includes(f.name.toLowerCase())) {
+      baseMap.set(f.name.toLowerCase(), f);
+    }
+  });
+  customFoods.forEach((f) => baseMap.set(f.name.toLowerCase(), f));
   
   const allFoods = Array.from(baseMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   
@@ -29,22 +34,28 @@ export default function FoodsPage() {
 
   const handleSave = () => {
     if (!editingFood.name) return toast.error("Name is required");
-    
-    if (editingFood.id) {
-       updateCustomFood(editingFood.id, editingFood);
-       toast.success(`Updated ${editingFood.name}`);
+
+    const owned = editingFood.id && customFoods.some((c) => c.id === editingFood.id);
+    if (owned) {
+      updateCustomFood(editingFood.id, editingFood);
+      toast.success(`Updated ${editingFood.name}`);
     } else {
-       addCustomFood(editingFood);
-       toast.success(`Added ${editingFood.name} to Database`);
+      addCustomFood(editingFood);
+      toast.success(`Saved ${editingFood.name} to your database`);
     }
     setEditingFood(null);
     setIsAdding(false);
   };
 
-  const handleDelete = (food: any) => {
-    if (window.confirm(`Are you sure you want to delete ${food.name}?`)) {
-       deleteCustomFood(food.id);
-       toast.success(`Deleted ${food.name}`);
+  const handleDelete = (food: { id?: string; name: string }) => {
+    if (!window.confirm(`Remove "${food.name}" from your food list?`)) return;
+    const isDbRow = food.id && customFoods.some((c) => c.id === food.id);
+    if (isDbRow) {
+      deleteCustomFood(food.id as string);
+      toast.success(`Removed ${food.name}`);
+    } else {
+      hideDefaultFood(food.name);
+      toast.success(`Hidden bundled food "${food.name}" (you can re-add it with the same name later).`);
     }
   };
 
@@ -86,8 +97,7 @@ export default function FoodsPage() {
 
       <div className="flex-1 overflow-y-auto pb-24 no-scrollbar -mx-6 px-6">
         <div className="space-y-3 mt-2">
-           {filteredList.map(food => {
-             const isCustom = !!food.id || customFoods.some(c => c.name.toLowerCase() === food.name.toLowerCase());
+           {filteredList.map((food) => {
              return (
                <div key={food.name} className="flex justify-between items-center p-4 bg-surface border border-white/5 rounded-[20px] transition-colors hover:bg-surface/80">
                  <div>
@@ -101,20 +111,18 @@ export default function FoodsPage() {
                     </p>
                  </div>
                  <div className="flex gap-2">
-                    <button 
+                    <button
                       onClick={() => openForm(food)}
                       className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 text-muted hover:text-foreground active:scale-90 transition-all"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    {isCustom && food.id && (
-                       <button 
-                         onClick={() => handleDelete(food)}
-                         className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 active:scale-90 transition-all hover:bg-red-500/20"
-                       >
-                         <Trash2 className="w-4 h-4" />
-                       </button>
-                    )}
+                    <button
+                      onClick={() => handleDelete(food)}
+                      className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-500/10 text-red-500 active:scale-90 transition-all hover:bg-red-500/20"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                  </div>
                </div>
              )

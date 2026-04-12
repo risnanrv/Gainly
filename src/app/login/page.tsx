@@ -28,6 +28,8 @@ function LoginContent() {
     }
   }, [searchParams]);
 
+  const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
+
   const handleSendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
@@ -37,7 +39,7 @@ function LoginContent() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: "https://gainly-seven.vercel.app/auth/callback",
+        emailRedirectTo: `${appOrigin}/auth/callback`,
       },
     });
 
@@ -112,7 +114,7 @@ function LoginContent() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "https://gainly-seven.vercel.app/auth/callback",
+        redirectTo: `${appOrigin}/auth/callback`,
       },
     });
 
