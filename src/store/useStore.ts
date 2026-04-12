@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import { supabase } from "@/lib/supabase";
 
 function newId(): string {
@@ -44,6 +43,14 @@ export interface UserProfile {
   manualProtein?: number;
 }
 
+/** Empty profile object for first-time edits (DB row may not exist yet). */
+export const emptyUserProfile = (): UserProfile => ({
+  startingWeight: null,
+  currentWeight: null,
+  targetWeight: null,
+  weeks: null,
+});
+
 export interface Reminders {
   dailySummary: boolean;
 }
@@ -69,6 +76,8 @@ export interface UserAuth {
 }
 
 interface AppState {
+  /** True only after Supabase user payload has been applied (session + profile/weights/targets fetch). */
+  isDataLoaded: boolean;
   targetCalories: number | null;
   targetProtein: number | null;
   logs: Record<string, DailySummary>;
@@ -78,7 +87,8 @@ interface AppState {
   customFoods: FoodEntryDB[];
   /** Lowercased names hidden from bundled catalog (stored in profiles.hidden_foods). */
   hiddenDefaultFoodNames: string[];
-  profile: UserProfile;
+  /** null until hydrated from Supabase (or no profile row yet — onboarding). */
+  profile: UserProfile | null;
   auth: UserAuth;
   reminders: Reminders;
   setTargets: (calories: number | null, protein: number | null) => void;
@@ -109,9 +119,8 @@ const defaultExpenseCategories = (): ExpenseCategory[] => [
   { id: "00000000-0000-4000-8000-000000000002", name: "Diet Foods" },
 ];
 
-export const useStore = create<AppState>()(
-  persist(
-    (set) => ({
+export const useStore = create<AppState>()((set) => ({
+      isDataLoaded: false,
       targetCalories: null,
       targetProtein: null,
       logs: {},
@@ -120,12 +129,7 @@ export const useStore = create<AppState>()(
       expenseCategories: defaultExpenseCategories(),
       customFoods: [],
       hiddenDefaultFoodNames: [],
-      profile: {
-        startingWeight: null,
-        currentWeight: null,
-        targetWeight: null,
-        weeks: null,
-      },
+      profile: null,
       auth: {
         isAuthenticated: false,
       },
@@ -133,10 +137,14 @@ export const useStore = create<AppState>()(
         dailySummary: false,
       },
       setTargets: (calories, protein) => set({ targetCalories: calories, targetProtein: protein }),
-      updateProfile: (updates) => set((state) => ({ profile: { ...state.profile, ...updates } })),
+      updateProfile: (updates) =>
+        set((state) => ({
+          profile: { ...(state.profile ?? emptyUserProfile()), ...updates },
+        })),
       updateAuth: (updates) => set((state) => ({ auth: { ...state.auth, ...updates } })),
       logout: () =>
         set({
+          isDataLoaded: false,
           auth: { isAuthenticated: false },
           logs: {},
           weightLogs: {},
@@ -144,30 +152,21 @@ export const useStore = create<AppState>()(
           expenseCategories: defaultExpenseCategories(),
           customFoods: [],
           hiddenDefaultFoodNames: [],
-          profile: {
-            startingWeight: null,
-            currentWeight: null,
-            targetWeight: null,
-            weeks: null,
-          },
+          profile: null,
           targetCalories: null,
           targetProtein: null,
           reminders: { dailySummary: false },
         }),
       clearData: () =>
         set({
+          isDataLoaded: false,
           logs: {},
           weightLogs: {},
           expenses: {},
           expenseCategories: defaultExpenseCategories(),
           customFoods: [],
           hiddenDefaultFoodNames: [],
-          profile: {
-            startingWeight: null,
-            currentWeight: null,
-            targetWeight: null,
-            weeks: null,
-          },
+          profile: null,
           targetCalories: null,
           targetProtein: null,
           reminders: { dailySummary: false },
@@ -215,7 +214,7 @@ export const useStore = create<AppState>()(
       addWeight: (date, weight) =>
         set((state) => ({
           weightLogs: { ...state.weightLogs, [date]: weight },
-          profile: { ...state.profile, currentWeight: weight },
+          profile: { ...(state.profile ?? emptyUserProfile()), currentWeight: weight },
         })),
       addExpense: (date, entry) =>
         set((state) => {
@@ -346,22 +345,4 @@ export const useStore = create<AppState>()(
             },
           };
         }),
-    }),
-    {
-      // New key so old blobs (which stored profile/targets/weights) cannot overwrite Supabase after rehydrate.
-      name: "gainly-storage-v3",
-      // Server-owned fields must come from Supabase only (AuthWrapper fetch + sync). Persisting them
-      // caused async rehydration to merge stale localStorage over fresh DB values after refresh.
-      partialize: (state) => ({
-        reminders: state.reminders,
-      }),
-      merge: (persisted, current) => {
-        const pr = (persisted as Partial<AppState> | null | undefined)?.reminders;
-        return {
-          ...current,
-          reminders: pr ? { ...current.reminders, ...pr } : current.reminders,
-        };
-      },
-    }
-  )
-);
+}));

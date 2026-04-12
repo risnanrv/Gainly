@@ -12,11 +12,23 @@ import Link from "next/link";
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  const { targetCalories, logs, targetProtein } = useStore();
+  const { targetCalories, logs, targetProtein, isDataLoaded, profile } = useStore();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    if (!isDataLoaded) return;
+    console.log("[Gainly UI home] targets + profile shown:", {
+      targetCalories,
+      targetProtein,
+      profileBody: profile
+        ? { startingWeight: profile.startingWeight, currentWeight: profile.currentWeight }
+        : null,
+    });
+  }, [isDataLoaded, targetCalories, targetProtein, profile]);
 
   if (!mounted) {
     return <div className="min-h-screen bg-background" />;

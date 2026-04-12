@@ -1,10 +1,12 @@
 "use client";
 
 import { useStore } from "@/store/useStore";
-import type { DailySummary, ExpenseCategory, ExpenseEntry, FoodEntry, FoodEntryDB } from "@/store/useStore";
+import type { UserProfile, DailySummary, ExpenseCategory, ExpenseEntry, FoodEntry, FoodEntryDB } from "@/store/useStore";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+
+const DEBUG_HYDRATE = process.env.NODE_ENV === "development";
 
 function normalizeLogEntries(raw: unknown): FoodEntry[] {
   if (!Array.isArray(raw)) return [];
@@ -34,7 +36,8 @@ function mapFoodRow(row: Record<string, unknown>): FoodEntryDB {
 }
 
 export default function AuthWrapper({ children }: { children: React.ReactNode }) {
-  const { auth, updateAuth, updateProfile } = useStore();
+  const auth = useStore((s) => s.auth);
+  const isDataLoaded = useStore((s) => s.isDataLoaded);
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -51,7 +54,9 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
       } else {
         lastSessionUserId.current = null;
         useStore.getState().clearData();
-        if (useStore.getState().auth.isAuthenticated) updateAuth({ isAuthenticated: false });
+        if (useStore.getState().auth.isAuthenticated) {
+          useStore.setState((s) => ({ ...s, auth: { ...s.auth, isAuthenticated: false } }));
+        }
         setInitializing(false);
       }
     });
@@ -64,7 +69,7 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
       } else {
         lastSessionUserId.current = null;
         useStore.getState().clearData();
-        updateAuth({ isAuthenticated: false });
+        useStore.setState((s) => ({ ...s, auth: { ...s.auth, isAuthenticated: false } }));
         if (pathname !== "/login") router.replace("/login");
       }
     });
@@ -78,10 +83,29 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
     if (switched) {
       useStore.getState().clearData();
     }
+    useStore.setState({ isDataLoaded: false });
     await fetchUserData(userId, email);
   };
 
   const fetchUserData = async (userId: string, email?: string) => {
+    useStore.setState({ isDataLoaded: false });
+
+    type Patch = Partial<{
+      auth: { isAuthenticated: boolean; email?: string; name?: string; age?: number };
+      profile: UserProfile | null;
+      targetCalories: number | null;
+      targetProtein: number | null;
+      logs: Record<string, DailySummary>;
+      weightLogs: Record<string, number>;
+      customFoods: FoodEntryDB[];
+      expenses: Record<string, ExpenseEntry[]>;
+      expenseCategories: ExpenseCategory[];
+      hiddenDefaultFoodNames: string[];
+      reminders: { dailySummary: boolean };
+    }>;
+
+    const patch: Patch = {};
+
     try {
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -129,26 +153,28 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
         }
       }
 
-      const stateUpdates: Partial<ReturnType<typeof useStore.getState>> = {};
+      patch.auth = {
+        isAuthenticated: true,
+        email: email,
+        name: profile?.name ?? undefined,
+        age: profile?.age ?? undefined,
+      };
 
       if (profile) {
-        updateAuth({
-          isAuthenticated: true,
-          email: email,
-          name: profile.name ?? undefined,
-          age: profile.age ?? undefined,
-        });
-
+        let tc: number | null = null;
+        let tp: number | null = null;
         if (profile.target_calories !== undefined && profile.target_calories !== null) {
-          const tc = Number(profile.target_calories);
-          if (!Number.isNaN(tc)) stateUpdates.targetCalories = tc;
+          const n = Number(profile.target_calories);
+          if (!Number.isNaN(n)) tc = n;
         }
         if (profile.target_protein !== undefined && profile.target_protein !== null) {
-          const tp = Number(profile.target_protein);
-          if (!Number.isNaN(tp)) stateUpdates.targetProtein = tp;
+          const n = Number(profile.target_protein);
+          if (!Number.isNaN(n)) tp = n;
         }
+        patch.targetCalories = tc;
+        patch.targetProtein = tp;
 
-        stateUpdates.profile = {
+        patch.profile = {
           startingWeight: profile.starting_weight ?? null,
           currentWeight: profile.current_weight ?? null,
           targetWeight: profile.target_weight ?? null,
@@ -157,14 +183,16 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
 
         const hidden = profile.hidden_foods;
         if (Array.isArray(hidden)) {
-          stateUpdates.hiddenDefaultFoodNames = hidden.map((n: string) => String(n).toLowerCase());
+          patch.hiddenDefaultFoodNames = hidden.map((n: string) => String(n).toLowerCase());
         }
 
         if (typeof profile.daily_reminder_enabled === "boolean") {
-          stateUpdates.reminders = { dailySummary: profile.daily_reminder_enabled };
+          patch.reminders = { dailySummary: profile.daily_reminder_enabled };
         }
       } else {
-        updateAuth({ isAuthenticated: true, email: email });
+        patch.profile = null;
+        patch.targetCalories = null;
+        patch.targetProtein = null;
         if (pathname !== "/login") router.replace("/login?setup=true");
       }
 
@@ -176,7 +204,7 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
           const totalProtein = Number(log.total_protein ?? 0);
           logs[String(log.date)] = { totalCalories, totalProtein, entries };
         });
-        stateUpdates.logs = logs;
+        patch.logs = logs;
       }
 
       if (!weightsResp.error && weightsResp.data) {
@@ -184,11 +212,11 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
         weightsResp.data.forEach((w: Record<string, unknown>) => {
           weightLogs[String(w.date)] = Number(w.weight);
         });
-        stateUpdates.weightLogs = weightLogs;
+        patch.weightLogs = weightLogs;
       }
 
       if (!foodsResp.error && foodsResp.data) {
-        stateUpdates.customFoods = foodsResp.data.map((row) => mapFoodRow(row as Record<string, unknown>));
+        patch.customFoods = foodsResp.data.map((row) => mapFoodRow(row as Record<string, unknown>));
       }
 
       if (!expensesResp.error && expensesResp.data) {
@@ -206,33 +234,68 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
           if (!expenses[date]) expenses[date] = [];
           expenses[date].push(entry);
         });
-        stateUpdates.expenses = expenses;
+        patch.expenses = expenses;
       }
 
       if (expenseCategories.length) {
-        stateUpdates.expenseCategories = expenseCategories;
+        patch.expenseCategories = expenseCategories;
       }
 
-      if (Object.keys(stateUpdates).length > 0) {
-        useStore.setState((state) => ({ ...state, ...stateUpdates }));
+      if (DEBUG_HYDRATE) {
+        console.log("[Gainly hydrate] profile row:", profile);
+        console.log("[Gainly hydrate] patch applied:", {
+          profile: patch.profile,
+          targetCalories: patch.targetCalories,
+          targetProtein: patch.targetProtein,
+          weightDays: patch.weightLogs ? Object.keys(patch.weightLogs).length : undefined,
+        });
       }
     } catch (e: unknown) {
       console.error("Error fetching user data:", e);
       const err = e as { code?: string };
       if (err?.code === "PGRST116") {
-        updateAuth({ isAuthenticated: true, email: email });
+        patch.auth = { isAuthenticated: true, email: email };
+        patch.profile = null;
+        patch.targetCalories = null;
+        patch.targetProtein = null;
         if (pathname !== "/login") router.replace("/login?setup=true");
       }
     } finally {
+      useStore.setState((state) => {
+        const next = { ...state, isDataLoaded: true as const };
+        if (patch.auth) next.auth = { ...next.auth, ...patch.auth };
+        if (patch.profile !== undefined) next.profile = patch.profile;
+        if (patch.targetCalories !== undefined) next.targetCalories = patch.targetCalories;
+        if (patch.targetProtein !== undefined) next.targetProtein = patch.targetProtein;
+        if (patch.logs !== undefined) next.logs = patch.logs;
+        if (patch.weightLogs !== undefined) next.weightLogs = patch.weightLogs;
+        if (patch.customFoods !== undefined) next.customFoods = patch.customFoods;
+        if (patch.expenses !== undefined) next.expenses = patch.expenses;
+        if (patch.expenseCategories !== undefined) next.expenseCategories = patch.expenseCategories;
+        if (patch.hiddenDefaultFoodNames !== undefined) next.hiddenDefaultFoodNames = patch.hiddenDefaultFoodNames;
+        if (patch.reminders !== undefined) next.reminders = patch.reminders;
+        return next;
+      });
+
+      if (DEBUG_HYDRATE) {
+        const st = useStore.getState();
+        console.log("[Gainly hydrate] store after apply:", {
+          isDataLoaded: st.isDataLoaded,
+          profile: st.profile,
+          targetCalories: st.targetCalories,
+          targetProtein: st.targetProtein,
+        });
+      }
       setInitializing(false);
     }
   };
 
   useEffect(() => {
-    if (!mounted || initializing || !auth.isAuthenticated) return;
+    if (!mounted || initializing || !auth.isAuthenticated || !isDataLoaded) return;
 
     const unsub = useStore.subscribe(() => {
-      if (!useStore.getState().auth.isAuthenticated) return;
+      const st = useStore.getState();
+      if (!st.auth.isAuthenticated || !st.isDataLoaded) return;
 
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
 
@@ -243,22 +306,25 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
         if (!user) return;
 
         const state = useStore.getState();
+        if (!state.isDataLoaded) return;
 
-        const { error: profileErr } = await supabase
-          .from("profiles")
-          .update({
-            starting_weight: state.profile.startingWeight,
-            current_weight: state.profile.currentWeight,
-            target_weight: state.profile.targetWeight,
-            weeks: state.profile.weeks,
-            target_calories: state.targetCalories,
-            target_protein: state.targetProtein,
-            hidden_foods: state.hiddenDefaultFoodNames,
-            daily_reminder_enabled: state.reminders.dailySummary,
-          })
-          .eq("id", user.id);
+        if (state.profile) {
+          const { error: profileErr } = await supabase
+            .from("profiles")
+            .update({
+              starting_weight: state.profile.startingWeight,
+              current_weight: state.profile.currentWeight,
+              target_weight: state.profile.targetWeight,
+              weeks: state.profile.weeks,
+              target_calories: state.targetCalories,
+              target_protein: state.targetProtein,
+              hidden_foods: state.hiddenDefaultFoodNames,
+              daily_reminder_enabled: state.reminders.dailySummary,
+            })
+            .eq("id", user.id);
 
-        if (profileErr) console.error("sync profiles:", profileErr.message);
+          if (profileErr) console.error("sync profiles:", profileErr.message);
+        }
 
         const logsToUpsert = Object.entries(state.logs).map(([date, log]) => ({
           user_id: user.id,
@@ -322,17 +388,21 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
     });
 
     return () => unsub();
-  }, [mounted, initializing, auth.isAuthenticated]);
+  }, [mounted, initializing, auth.isAuthenticated, isDataLoaded]);
 
   useEffect(() => {
     if (!mounted || initializing) return;
 
     if (!auth.isAuthenticated && pathname !== "/login") {
       router.replace("/login");
-    } else if (auth.isAuthenticated && pathname === "/login") {
-      router.replace("/");
+    } else if (auth.isAuthenticated && pathname === "/login" && isDataLoaded) {
+      const setup =
+        typeof window !== "undefined" && new URLSearchParams(window.location.search).get("setup") === "true";
+      if (!setup) {
+        router.replace("/");
+      }
     }
-  }, [mounted, initializing, auth.isAuthenticated, pathname, router]);
+  }, [mounted, initializing, auth.isAuthenticated, pathname, router, isDataLoaded]);
 
   if (!mounted || initializing) {
     return (
@@ -341,6 +411,16 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
       </div>
     );
   }
+
+  if (auth.isAuthenticated && !isDataLoaded) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6">
+        <div className="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+        <p className="text-sm text-muted text-center">Loading your data…</p>
+      </div>
+    );
+  }
+
   if (!auth.isAuthenticated && pathname !== "/login") return null;
 
   return <>{children}</>;

@@ -9,9 +9,11 @@ import { supabase } from "@/lib/supabase";
 export default function ProfilePage() {
   const { auth, profile, updateProfile, targetCalories, targetProtein, setTargets, reminders, updateReminders } = useStore();
   
-  const [startingWeight, setStartingWeight] = useState(profile.startingWeight?.toString() || profile.currentWeight?.toString() || "");
-  const [targetWeight, setTargetWeight] = useState(profile.targetWeight?.toString() || "");
-  const [durationWeeks, setDurationWeeks] = useState(profile.weeks?.toString() || "");
+  const [startingWeight, setStartingWeight] = useState(
+    profile?.startingWeight?.toString() || profile?.currentWeight?.toString() || ""
+  );
+  const [targetWeight, setTargetWeight] = useState(profile?.targetWeight?.toString() || "");
+  const [durationWeeks, setDurationWeeks] = useState(profile?.weeks?.toString() || "");
 
   const [manualCal, setManualCal] = useState(targetCalories?.toString() || "");
   const [manualPro, setManualPro] = useState(targetProtein?.toString() || "");
@@ -19,23 +21,23 @@ export default function ProfilePage() {
   // Keep inputs in sync when AuthWrapper hydrates from Supabase (avoid stale useState from first paint).
   useEffect(() => {
     setStartingWeight(
-      profile.startingWeight != null
+      profile?.startingWeight != null
         ? String(profile.startingWeight)
-        : profile.currentWeight != null
+        : profile?.currentWeight != null
           ? String(profile.currentWeight)
           : ""
     );
-    setTargetWeight(profile.targetWeight != null ? String(profile.targetWeight) : "");
-    setDurationWeeks(profile.weeks != null ? String(profile.weeks) : "");
-  }, [profile.startingWeight, profile.currentWeight, profile.targetWeight, profile.weeks]);
+    setTargetWeight(profile?.targetWeight != null ? String(profile.targetWeight) : "");
+    setDurationWeeks(profile?.weeks != null ? String(profile.weeks) : "");
+  }, [profile]);
 
   useEffect(() => {
     setManualCal(targetCalories != null ? String(targetCalories) : "");
     setManualPro(targetProtein != null ? String(targetProtein) : "");
   }, [targetCalories, targetProtein]);
 
-  const maintenance = Number(profile.currentWeight || 0) * 24 * 1.55;
-  const totalGainKg = Number(targetWeight || 0) - Number(profile.currentWeight || 0);
+  const maintenance = Number(profile?.currentWeight ?? 0) * 24 * 1.55;
+  const totalGainKg = Number(targetWeight || 0) - Number(profile?.currentWeight ?? 0);
   const dailySurplus = (totalGainKg * 7700) / (Math.max(1, Number(durationWeeks || 0)) * 7);
   const recommendedCalories = Math.round(maintenance + dailySurplus);
   const recommendedProtein = Math.round(Number(targetWeight || 0) * 1.8);
@@ -66,7 +68,7 @@ export default function ProfilePage() {
     }
 
     const currentKg =
-      profile.currentWeight != null && !Number.isNaN(Number(profile.currentWeight))
+      profile?.currentWeight != null && !Number.isNaN(Number(profile.currentWeight))
         ? Number(profile.currentWeight)
         : sw;
 

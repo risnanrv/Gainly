@@ -24,10 +24,19 @@ export default function ProgressPage() {
   });
 
   const hasData = graphData.length > 0;
-  const startingWeight = profile.startingWeight || profile.currentWeight || 0;
-  const currentLog = hasData ? graphData[graphData.length - 1].weight : (profile.currentWeight || 0);
-  const diff = currentLog - startingWeight;
-  const isGain = diff >= 0;
+  const startKg = profile?.startingWeight ?? profile?.currentWeight ?? null;
+  const currentFromProfile = profile?.currentWeight ?? null;
+  const startingWeightDisplay = startKg != null ? startKg : "—";
+  const currentLogDisplay = hasData
+    ? graphData[graphData.length - 1].weight
+    : currentFromProfile != null
+      ? currentFromProfile
+      : "—";
+  const diff =
+    typeof currentLogDisplay === "number" && typeof startingWeightDisplay === "number"
+      ? currentLogDisplay - startingWeightDisplay
+      : null;
+  const isGain = diff != null && diff >= 0;
 
   // Weekly stats calculator
   let weeklyCals = 0;
@@ -76,18 +85,23 @@ export default function ProgressPage() {
           <div className="grid grid-cols-3 gap-2 text-center items-end mb-6">
              <div>
                 <p className="text-[10px] uppercase tracking-wider text-muted font-medium mb-1">Starting</p>
-                <div className="font-bold text-lg">{startingWeight} <span className="text-xs text-muted font-normal">kg</span></div>
+                <div className="font-bold text-lg">
+                  {startingWeightDisplay}{" "}
+                  <span className="text-xs text-muted font-normal">{typeof startingWeightDisplay === "number" ? "kg" : ""}</span>
+                </div>
              </div>
              <div>
                 <p className="text-[10px] uppercase tracking-wider text-muted font-medium mb-1 pl-1">Current</p>
                 <div className="font-bold text-3xl tracking-tight text-primary drop-shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                  {currentLog} <span className="text-sm font-normal text-muted">kg</span>
+                  {currentLogDisplay}{" "}
+                  <span className="text-sm font-normal text-muted">{typeof currentLogDisplay === "number" ? "kg" : ""}</span>
                 </div>
              </div>
              <div>
                 <p className="text-[10px] uppercase tracking-wider text-muted font-medium mb-1">Total Diff</p>
-                <div className={`font-bold text-lg ${isGain ? 'text-highlight' : 'text-red-400'}`}>
-                   {isGain ? '+' : ''}{diff.toFixed(1)} <span className="text-xs text-muted font-normal">kg</span>
+                <div className={`font-bold text-lg ${diff != null ? (isGain ? "text-highlight" : "text-red-400") : "text-muted"}`}>
+                   {diff != null ? `${isGain ? "+" : ""}${diff.toFixed(1)}` : "—"}{" "}
+                   <span className="text-xs text-muted font-normal">{diff != null ? "kg" : ""}</span>
                 </div>
              </div>
           </div>
