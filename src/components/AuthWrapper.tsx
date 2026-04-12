@@ -139,8 +139,14 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
           age: profile.age ?? undefined,
         });
 
-        if (profile.target_calories != null) stateUpdates.targetCalories = Number(profile.target_calories);
-        if (profile.target_protein != null) stateUpdates.targetProtein = Number(profile.target_protein);
+        if (profile.target_calories !== undefined && profile.target_calories !== null) {
+          const tc = Number(profile.target_calories);
+          if (!Number.isNaN(tc)) stateUpdates.targetCalories = tc;
+        }
+        if (profile.target_protein !== undefined && profile.target_protein !== null) {
+          const tp = Number(profile.target_protein);
+          if (!Number.isNaN(tp)) stateUpdates.targetProtein = tp;
+        }
 
         stateUpdates.profile = {
           startingWeight: profile.starting_weight ?? null,

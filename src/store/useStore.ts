@@ -348,19 +348,18 @@ export const useStore = create<AppState>()(
         }),
     }),
     {
-      name: "gainly-storage",
+      // New key so old blobs (which stored profile/targets/weights) cannot overwrite Supabase after rehydrate.
+      name: "gainly-storage-v3",
+      // Server-owned fields must come from Supabase only (AuthWrapper fetch + sync). Persisting them
+      // caused async rehydration to merge stale localStorage over fresh DB values after refresh.
+      partialize: (state) => ({
+        reminders: state.reminders,
+      }),
       merge: (persisted, current) => {
-        const p = persisted as Partial<AppState>;
-        const uuidRe =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        const cats = p.expenseCategories;
-        const expenseCategories =
-          cats?.length && cats.every((c) => uuidRe.test(c.id)) ? cats : defaultExpenseCategories();
+        const pr = (persisted as Partial<AppState> | null | undefined)?.reminders;
         return {
           ...current,
-          ...(p as object),
-          hiddenDefaultFoodNames: p.hiddenDefaultFoodNames ?? [],
-          expenseCategories,
+          reminders: pr ? { ...current.reminders, ...pr } : current.reminders,
         };
       },
     }

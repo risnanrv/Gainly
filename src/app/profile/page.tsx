@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore } from "@/store/useStore";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Check, Settings, Bell, LogOut, Info } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -16,6 +16,24 @@ export default function ProfilePage() {
   const [manualCal, setManualCal] = useState(targetCalories?.toString() || "");
   const [manualPro, setManualPro] = useState(targetProtein?.toString() || "");
 
+  // Keep inputs in sync when AuthWrapper hydrates from Supabase (avoid stale useState from first paint).
+  useEffect(() => {
+    setStartingWeight(
+      profile.startingWeight != null
+        ? String(profile.startingWeight)
+        : profile.currentWeight != null
+          ? String(profile.currentWeight)
+          : ""
+    );
+    setTargetWeight(profile.targetWeight != null ? String(profile.targetWeight) : "");
+    setDurationWeeks(profile.weeks != null ? String(profile.weeks) : "");
+  }, [profile.startingWeight, profile.currentWeight, profile.targetWeight, profile.weeks]);
+
+  useEffect(() => {
+    setManualCal(targetCalories != null ? String(targetCalories) : "");
+    setManualPro(targetProtein != null ? String(targetProtein) : "");
+  }, [targetCalories, targetProtein]);
+
   const maintenance = Number(profile.currentWeight || 0) * 24 * 1.55;
   const totalGainKg = Number(targetWeight || 0) - Number(profile.currentWeight || 0);
   const dailySurplus = (totalGainKg * 7700) / (Math.max(1, Number(durationWeeks || 0)) * 7);
@@ -23,34 +41,83 @@ export default function ProfilePage() {
   const recommendedProtein = Math.round(Number(targetWeight || 0) * 1.8);
 
   const handleSaveGoals = async () => {
+    const sw = Number(startingWeight);
+    const tw = targetWeight.trim() === "" ? NaN : Number(targetWeight);
+    const wk = durationWeeks.trim() === "" ? NaN : Number(durationWeeks);
+    if (Number.isNaN(sw) || sw <= 0) {
+      toast.error("Enter a valid starting weight.");
+      return;
+    }
+
     updateProfile({
-      startingWeight: Number(startingWeight),
-      targetWeight: Number(targetWeight),
-      weeks: Number(durationWeeks),
+      startingWeight: sw,
+      targetWeight: Number.isFinite(tw) && tw > 0 ? tw : null,
+      weeks: Number.isFinite(wk) && wk > 0 ? wk : null,
     });
     setManualCal(recommendedCalories.toString());
     setManualPro(recommendedProtein.toString());
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-       await supabase.from('profiles').update({
-          starting_weight: Number(startingWeight),
-          target_weight: Number(targetWeight),
-          weeks: Number(durationWeeks)
-       }).eq('id', user.id);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Not signed in.");
+      return;
+    }
+
+    const currentKg =
+      profile.currentWeight != null && !Number.isNaN(Number(profile.currentWeight))
+        ? Number(profile.currentWeight)
+        : sw;
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        starting_weight: sw,
+        current_weight: currentKg,
+        target_weight: Number.isFinite(tw) && tw > 0 ? tw : null,
+        weeks: Number.isFinite(wk) && wk > 0 ? wk : null,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      console.error(error);
+      toast.error(error.message || "Could not save body metrics.");
+      return;
     }
     toast.success("Goals updated!");
   };
 
   const handleSaveTargets = async () => {
-    setTargets(Number(manualCal), Number(manualPro));
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-       await supabase.from('profiles').update({
-          target_calories: Number(manualCal),
-          target_protein: Number(manualPro)
-       }).eq('id', user.id);
+    const cal = Number(manualCal);
+    const pro = Number(manualPro);
+    if (Number.isNaN(cal) || Number.isNaN(pro) || cal <= 0 || pro <= 0) {
+      toast.error("Enter valid calorie and protein targets.");
+      return;
+    }
+
+    setTargets(cal, pro);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Not signed in.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        target_calories: cal,
+        target_protein: pro,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      console.error(error);
+      toast.error(error.message || "Could not save targets.");
+      return;
     }
     toast.success("Daily targets updated!");
   };
