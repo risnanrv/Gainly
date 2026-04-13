@@ -107,14 +107,39 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
     const patch: Patch = {};
 
     try {
-      const { data: profile, error: profileError } = await supabase
+      let profile = null;
+
+      const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .or(`id.eq.${userId},user_id.eq.${userId}`)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error("profiles fetch:", profileError.message);
+        .eq("id", userId)
+        .single();
+      
+      if (error) {
+        if (error.code === "PGRST116") {
+          // No profile found → create one
+          const { data: newProfile, error: insertError } = await supabase
+            .from("profiles")
+            .insert({
+              id: userId,
+              starting_weight: null,
+              current_weight: null,
+              target_calories: null,
+              target_protein: null,
+            })
+            .select()
+            .single();
+      
+          if (insertError) {
+            console.error("Profile create error:", insertError.message);
+          } else {
+            profile = newProfile;
+          }
+        } else {
+          console.error("Profile fetch error:", error.message);
+        }
+      } else {
+        profile = data;
       }
 
       const logsResp = await supabase.from("logs").select("*").eq("user_id", userId);
@@ -171,15 +196,15 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
           const n = Number(profile.target_protein);
           if (!Number.isNaN(n)) tp = n;
         }
-        patch.targetCalories = tc;
-        patch.targetProtein = tp;
+        if (tc !== null) patch.targetCalories = tc;
+if (tp !== null) patch.targetProtein = tp;
 
-        patch.profile = {
-          startingWeight: profile.starting_weight ?? null,
-          currentWeight: profile.current_weight ?? null,
-          targetWeight: profile.target_weight ?? null,
-          weeks: profile.weeks ?? null,
-        };
+patch.profile = {
+  startingWeight: profile.starting_weight !== null ? profile.starting_weight : useStore.getState().profile?.startingWeight ?? null,
+  currentWeight: profile.current_weight !== null ? profile.current_weight : useStore.getState().profile?.currentWeight ?? null,
+  targetWeight: profile.target_weight ?? null,
+  weeks: profile.weeks ?? null,
+};
 
         const hidden = profile.hidden_foods;
         if (Array.isArray(hidden)) {
@@ -323,8 +348,10 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
             })
             .eq("id", user.id);
 
-          if (profileErr) console.error("sync profiles:", profileErr.message);
-        }
+            if (profileErr) {
+              console.error("sync profiles:", profileErr.message);
+              alert("PROFILE SAVE FAILED: " + profileErr.message);
+            }        }
 
         const logsToUpsert = Object.entries(state.logs).map(([date, log]) => ({
           user_id: user.id,
