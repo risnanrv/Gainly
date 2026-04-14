@@ -174,22 +174,60 @@ export const useStore = create<AppState>()((set) => ({
       updateReminders: (updates) =>
         set((state) => ({ reminders: { ...state.reminders, ...updates } })),
 
-      addCustomFood: (food) =>
-        set((state) => {
-          if (state.customFoods.some((f) => f.name.toLowerCase() === food.name.toLowerCase())) {
-            return state;
+      addCustomFood: (food) => {
+        void (async () => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+      
+          const { data, error } = await supabase
+            .from("foods")
+            .insert({
+              user_id: user.id,
+              name: food.name,
+              unit: food.unit,
+              calories_per_100g: food.calories_per_100g || null,
+              protein_per_100g: food.protein_per_100g || null,
+              calories_per_unit: food.calories_per_unit || null,
+              protein_per_unit: food.protein_per_unit || null,
+              calories_per_100ml: food.calories_per_100ml || null,
+              protein_per_100ml: food.protein_per_100ml || null,
+            })
+            .select()
+            .single();
+      
+          if (error) {
+            console.error("addCustomFood:", error.message);
+            return;
           }
-          return {
-            customFoods: [
-              ...state.customFoods,
-              { ...food, id: newId(), timestamp: Date.now() },
-            ],
-          };
-        }),
-      updateCustomFood: (id, updates) =>
-        set((state) => ({
-          customFoods: state.customFoods.map((f) => (f.id === id ? { ...f, ...updates } : f)),
-        })),
+      
+          set((state) => ({
+            customFoods: [...state.customFoods, data],
+          }));
+        })();
+      },
+      updateCustomFood: (id, updates) => {
+        void (async () => {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+      
+          const { error } = await supabase
+            .from("foods")
+            .update(updates)
+            .eq("id", id)
+            .eq("user_id", user.id);
+      
+          if (error) {
+            console.error("updateCustomFood:", error.message);
+            return;
+          }
+      
+          set((state) => ({
+            customFoods: state.customFoods.map((f) =>
+              f.id === id ? { ...f, ...updates } : f
+            ),
+          }));
+        })();
+      },
       deleteCustomFood: (id) => {
         void (async () => {
           const {

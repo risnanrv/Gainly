@@ -142,6 +142,7 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
         profile = data;
       }
 
+    
       const logsResp = await supabase.from("logs").select("*").eq("user_id", userId);
       if (logsResp.error) console.error("logs fetch:", logsResp.error.message);
 
