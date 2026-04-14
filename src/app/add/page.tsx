@@ -495,9 +495,16 @@ function AddFoodContent() {
                       return;
                     }
 
+                    const normalizedUnit =
+                      selectedFood.unit === "grams"
+                        ? "g"
+                        : selectedFood.unit === "count"
+                          ? "unit"
+                          : "ml";
+
                     const newFood = {
                       name: selectedFood.name || "Custom Food",
-                      unit: selectedFood.unit,
+                      unit: normalizedUnit,
                       calories_per_100g: selectedFood.calories_per_100g || null,
                       protein_per_100g: selectedFood.protein_per_100g || null,
                       calories_per_unit: selectedFood.calories_per_unit || null,
