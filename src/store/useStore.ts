@@ -191,6 +191,28 @@ export const useStore = create<AppState>()((set) => ({
     set((state) => ({ reminders: { ...state.reminders, ...updates } })),
 
   addCustomFood: (food) => {
+    const tempId = newId();
+
+    // ✅ 1. INSTANT UI UPDATE (OPTIMISTIC)
+    set((state) => ({
+      customFoods: [
+        ...state.customFoods,
+        {
+          id: tempId,
+          name: food.name,
+          unit: food.unit,
+          calories_per_100g: food.calories_per_100g,
+          protein_per_100g: food.protein_per_100g,
+          calories_per_unit: food.calories_per_unit,
+          protein_per_unit: food.protein_per_unit,
+          calories_per_100ml: food.calories_per_100ml,
+          protein_per_100ml: food.protein_per_100ml,
+          timestamp: Date.now(),
+        },
+      ],
+    }));
+
+    // ✅ 2. SAVE TO DB
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -216,42 +238,46 @@ export const useStore = create<AppState>()((set) => ({
         return;
       }
 
-      // 🔥 IMPORTANT: REFETCH ALL FOODS (SOURCE OF TRUTH)
-      const { data: foods } = await supabase
-        .from("foods")
-        .select("*")
-        .eq("user_id", user.id);
-
-      if (foods) {
-        set({ customFoods: foods.map(mapFoodRow) });
-      }
+      // ✅ 3. REPLACE TEMP WITH REAL DATA
+      set((state) => ({
+        customFoods: state.customFoods.map((f) =>
+          f.id === tempId ? mapFoodRow(data) : f
+        ),
+      }));
     })();
   },
   updateCustomFood: (id, updates) => {
+    // ✅ 1. INSTANT UI UPDATE
+    set((state) => ({
+      customFoods: state.customFoods.map((f) =>
+        f.id === id ? { ...f, ...updates } : f
+      ),
+    }));
+
+    // ✅ 2. SAVE TO DB
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("foods")
         .update(updates)
         .eq("id", id)
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .select()
+        .single();
 
       if (error) {
         console.error("Update food error:", error.message);
         return;
       }
 
-      // 🔥 REFETCH
-      const { data: foods } = await supabase
-        .from("foods")
-        .select("*")
-        .eq("user_id", user.id);
-
-      if (foods) {
-        set({ customFoods: foods.map(mapFoodRow) });
-      }
+      // ✅ 3. SYNC FINAL DATA
+      set((state) => ({
+        customFoods: state.customFoods.map((f) =>
+          f.id === id ? mapFoodRow(data) : f
+        ),
+      }));
     })();
   },
   deleteCustomFood: (id) => {

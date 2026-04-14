@@ -38,10 +38,14 @@ function AddFoodContent() {
   const [barcodeQuery, setBarcodeQuery] = useState("");
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  const { logs, addFood, customFoods, addCustomFood, hiddenDefaultFoodNames } = useStore();
+  const customFoods = useStore((s) => s.customFoods);
+  const addCustomFood = useStore((s) => s.addCustomFood);
+  const logs = useStore((s) => s.logs);
+  const addFood = useStore((s) => s.addFood);
+
   const today = getToday();
   const recentEntries = logs[today]?.entries || [];
-
+  const hiddenDefaultFoodNames = useStore((s) => s.hiddenDefaultFoodNames);
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split("T")[0];
@@ -123,12 +127,12 @@ function AddFoodContent() {
     try {
       const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${query}.json`);
       if (!res.ok) throw new Error("API Error");
-      
+
       const data = await res.json();
-      
+
       if (data.status === 1 && data.product) {
         const nut = data.product.nutriments || {};
-        
+
         const resolvedName = data.product.product_name || `Scanned Item (${query})`;
         const kcals = Number(nut["energy-kcal_100g"]) || Number(nut["energy_100g"]) / 4.184 || 0;
         const proteins = Number(nut["proteins_100g"]) || 0;
@@ -140,18 +144,18 @@ function AddFoodContent() {
           protein_per_100g: Math.round(proteins * 10) / 10,
           isNewBarcode: true
         };
-        
+
         setSelectedFood(newFood);
         setQuantity("");
         stopScanner();
       } else {
         toast.info("Product not found in database. Please enter manually.", { duration: 4000 });
-        setSelectedFood({ 
-          name: ``, 
-          unit: "grams", 
-          calories_per_100g: 0, 
-          protein_per_100g: 0, 
-          isNewBarcode: true 
+        setSelectedFood({
+          name: ``,
+          unit: "grams",
+          calories_per_100g: 0,
+          protein_per_100g: 0,
+          isNewBarcode: true
         });
         stopScanner();
       }
@@ -160,25 +164,25 @@ function AddFoodContent() {
       setSelectedFood({ name: ``, unit: "grams", calories_per_100g: 0, protein_per_100g: 0, isNewBarcode: true });
       stopScanner();
     } finally {
-       setIsBarcodeLoading(false);
-       setBarcodeQuery("");
+      setIsBarcodeLoading(false);
+      setBarcodeQuery("");
     }
   };
 
   const startScanner = async () => {
     setCameraError(null);
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-       setCameraError("Camera not supported on this browser.");
-       return;
+      setCameraError("Camera not supported on this browser.");
+      return;
     }
-    
+
     setScannerActive(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       stream.getTracks().forEach(track => track.stop());
 
       if (!scannerRef.current) scannerRef.current = new Html5Qrcode("reader");
-      
+
       await scannerRef.current.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 150 } },
@@ -202,7 +206,7 @@ function AddFoodContent() {
 
   const stopScanner = async () => {
     if (scannerRef.current && scannerRef.current.isScanning) {
-      await scannerRef.current.stop().catch(()=>null);
+      await scannerRef.current.stop().catch(() => null);
     }
     setScannerActive(false);
     setCameraError(null);
@@ -219,8 +223,8 @@ function AddFoodContent() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Add Food</h1>
           <div className="flex gap-2">
-            <button 
-              onClick={() => router.push('/foods')} 
+            <button
+              onClick={() => router.push('/foods')}
               className="h-11 px-4 rounded-xl bg-surface/80 border border-white/5 flex items-center justify-center font-bold text-sm text-muted hover:text-foreground active:scale-95 transition-colors"
             >
               Food DB
@@ -236,10 +240,10 @@ function AddFoodContent() {
             {!scannerActive ? (
               <div className="bg-surface border border-white/5 p-6 rounded-[24px] mb-4 flex flex-col items-center justify-center gap-4">
                 {cameraError ? (
-                   <div className="text-center flex flex-col items-center">
-                      <p className="text-highlight text-sm font-semibold mb-4">{cameraError}</p>
-                      <button onClick={startScanner} className="px-5 py-2.5 bg-primary rounded-xl text-background font-bold text-sm active:scale-95 transition-transform">Retry Camera</button>
-                   </div>
+                  <div className="text-center flex flex-col items-center">
+                    <p className="text-highlight text-sm font-semibold mb-4">{cameraError}</p>
+                    <button onClick={startScanner} className="px-5 py-2.5 bg-primary rounded-xl text-background font-bold text-sm active:scale-95 transition-transform">Retry Camera</button>
+                  </div>
                 ) : (
                   <>
                     <button onClick={startScanner} className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary group active:scale-95 transition-all">
@@ -252,10 +256,10 @@ function AddFoodContent() {
             ) : (
               <div className="bg-surface border border-white/5 p-2 rounded-[24px] mb-4 overflow-hidden relative shadow-lg">
                 {isBarcodeLoading && (
-                   <div className="absolute inset-0 bg-background/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm">
-                      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3"></div>
-                      <p className="text-sm font-bold animate-pulse text-primary">Fetching product...</p>
-                   </div>
+                  <div className="absolute inset-0 bg-background/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm">
+                    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3"></div>
+                    <p className="text-sm font-bold animate-pulse text-primary">Fetching product...</p>
+                  </div>
                 )}
                 <div id="reader" className="w-full rounded-[18px] overflow-hidden aspect-square sm:aspect-video bg-black flex items-center justify-center" />
                 <button onClick={stopScanner} className="absolute top-4 right-4 bg-background/80 backdrop-blur-md p-2 rounded-full text-foreground z-20 hover:bg-white/10 transition-colors">
@@ -274,9 +278,9 @@ function AddFoodContent() {
                 className="w-full bg-surface border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                 disabled={isBarcodeLoading}
               />
-              <button 
+              <button
                 disabled={isBarcodeLoading || !barcodeQuery}
-                onClick={() => handleBarcodeSearch(barcodeQuery)} 
+                onClick={() => handleBarcodeSearch(barcodeQuery)}
                 className="px-5 bg-primary text-background rounded-xl font-bold text-sm shrink-0 disabled:opacity-50 active:scale-95 transition-all"
               >
                 {isBarcodeLoading ? '...' : 'Search'}
@@ -339,8 +343,8 @@ function AddFoodContent() {
               <button
                 key={"id" in food && (food as { id?: string }).id ? (food as { id?: string }).id : food.name}
                 onClick={() => {
-                   setSelectedFood(food as ParsedFood); 
-                   setQuantity("");
+                  setSelectedFood(food as ParsedFood);
+                  setQuantity("");
                 }}
                 className="w-full flex items-center justify-between p-4 bg-surface/50 border border-white/5 rounded-2xl active:bg-surface transition-colors"
               >
@@ -396,7 +400,7 @@ function AddFoodContent() {
                     <h2 className="text-2xl font-black tracking-tight leading-tight">{selectedFood.name}</h2>
                   )}
                   <p className="text-muted text-sm mt-2 font-medium">
-                     Specify amount in {selectedFood.unit === "count" ? "units" : selectedFood.unit === "ml" ? "ml" : "grams"}
+                    Specify amount in {selectedFood.unit === "count" ? "units" : selectedFood.unit === "ml" ? "ml" : "grams"}
                   </p>
                 </div>
                 <button
@@ -423,39 +427,39 @@ function AddFoodContent() {
               {/* Enhanced Quantity Logic */}
               {selectedFood.unit === "count" ? (
                 <div className="flex items-center justify-center gap-6 mb-8 mt-2">
-                   <button onClick={() => setQuantity(Math.max(1, (quantity === "" ? 1 : quantity) - 1))} className="w-16 h-16 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Minus className="w-6 h-6 stroke-[3]"/></button>
-                   <div className="flex flex-col items-center justify-center min-w-[100px]">
-                     <span className="text-5xl font-black text-foreground drop-shadow-sm">{quantity === "" ? "—" : quantity}</span>
-                     <span className="text-muted text-sm font-bold tracking-wider uppercase mt-1">Units</span>
-                   </div>
-                   <button onClick={() => setQuantity((quantity === "" ? 0 : quantity) + 1)} className="w-16 h-16 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Plus className="w-6 h-6 stroke-[3]"/></button>
+                  <button onClick={() => setQuantity(Math.max(1, (quantity === "" ? 1 : quantity) - 1))} className="w-16 h-16 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Minus className="w-6 h-6 stroke-[3]" /></button>
+                  <div className="flex flex-col items-center justify-center min-w-[100px]">
+                    <span className="text-5xl font-black text-foreground drop-shadow-sm">{quantity === "" ? "—" : quantity}</span>
+                    <span className="text-muted text-sm font-bold tracking-wider uppercase mt-1">Units</span>
+                  </div>
+                  <button onClick={() => setQuantity((quantity === "" ? 0 : quantity) + 1)} className="w-16 h-16 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Plus className="w-6 h-6 stroke-[3]" /></button>
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-4 mb-8 relative">
-                   <button onClick={() => setQuantity(Math.max(1, (quantity === "" ? 50 : quantity) - 50))} className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Minus className="w-6 h-6 stroke-[3]"/></button>
-                   <div className="relative flex-1">
-                     <input
-                       type="number"
-                       inputMode="decimal"
-                       placeholder="Amount"
-                       value={quantity}
-                       onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
-                       className="w-full bg-background border border-white/10 rounded-2xl py-4 flex-1 text-3xl font-black text-center focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner placeholder:text-muted/30"
-                     />
-                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted font-bold pointer-events-none">{selectedFood.unit === "ml" ? "ml" : "g"}</span>
-                   </div>
-                   <button onClick={() => setQuantity((quantity === "" ? 0 : quantity) + 50)} className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Plus className="w-6 h-6 stroke-[3]"/></button>
+                  <button onClick={() => setQuantity(Math.max(1, (quantity === "" ? 50 : quantity) - 50))} className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Minus className="w-6 h-6 stroke-[3]" /></button>
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="Amount"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="w-full bg-background border border-white/10 rounded-2xl py-4 flex-1 text-3xl font-black text-center focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all shadow-inner placeholder:text-muted/30"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-muted font-bold pointer-events-none">{selectedFood.unit === "ml" ? "ml" : "g"}</span>
+                  </div>
+                  <button onClick={() => setQuantity((quantity === "" ? 0 : quantity) + 50)} className="w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-muted active:scale-90 transition-all hover:bg-white/10 shrink-0 shadow-sm"><Plus className="w-6 h-6 stroke-[3]" /></button>
                 </div>
               )}
 
               {quantity === "" ? (
-                 <div className="text-center py-4 mb-4 text-muted text-sm font-medium">Enter quantity to see nutrition...</div>
+                <div className="text-center py-4 mb-4 text-muted text-sm font-medium">Enter quantity to see nutrition...</div>
               ) : (
                 <>
                   {isUnrealistic && (
-                     <div className="mx-auto max-w-sm mb-4 px-3 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-500 text-xs font-semibold text-center mt-[-10px]">
-                        ⚠️ This quantity seems unusually high.
-                     </div>
+                    <div className="mx-auto max-w-sm mb-4 px-3 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-500 text-xs font-semibold text-center mt-[-10px]">
+                      ⚠️ This quantity seems unusually high.
+                    </div>
                   )}
                   <div className="flex justify-around items-center bg-primary/10 border border-primary/20 rounded-2xl p-5 mb-6">
                     <div className="text-center">
@@ -475,14 +479,14 @@ function AddFoodContent() {
                 onClick={() => {
                   if (selectedFood.isNewBarcode || (selectedFood.calories_per_100g === 0 && (selectedFood.protein_per_100g || 0) > 0) || (selectedFood.calories_per_100ml === 0 && (selectedFood.protein_per_100ml || 0) > 0)) {
                     addCustomFood({
-                       name: selectedFood.name || "Custom Food",
-                       unit: selectedFood.unit,
-                       calories_per_100g: selectedFood.calories_per_100g || 0,
-                       protein_per_100g: selectedFood.protein_per_100g || 0,
-                       calories_per_unit: selectedFood.calories_per_unit,
-                       protein_per_unit: selectedFood.protein_per_unit,
-                       calories_per_100ml: selectedFood.calories_per_100ml,
-                       protein_per_100ml: selectedFood.protein_per_100ml
+                      name: selectedFood.name || "Custom Food",
+                      unit: selectedFood.unit,
+                      calories_per_100g: selectedFood.calories_per_100g || 0,
+                      protein_per_100g: selectedFood.protein_per_100g || 0,
+                      calories_per_unit: selectedFood.calories_per_unit,
+                      protein_per_unit: selectedFood.protein_per_unit,
+                      calories_per_100ml: selectedFood.calories_per_100ml,
+                      protein_per_100ml: selectedFood.protein_per_100ml
                     });
                   }
                   handleAdd();
