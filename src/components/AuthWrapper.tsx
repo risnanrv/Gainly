@@ -114,7 +114,7 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
         .select("*")
         .eq("id", userId)
         .single();
-      
+
       if (error) {
         if (error.code === "PGRST116") {
           // No profile found → create one
@@ -129,7 +129,7 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
             })
             .select()
             .single();
-      
+
           if (insertError) {
             console.error("Profile create error:", insertError.message);
           } else {
@@ -142,7 +142,7 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
         profile = data;
       }
 
-    
+
       const logsResp = await supabase.from("logs").select("*").eq("user_id", userId);
       if (logsResp.error) console.error("logs fetch:", logsResp.error.message);
 
@@ -198,14 +198,14 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
           if (!Number.isNaN(n)) tp = n;
         }
         if (tc !== null) patch.targetCalories = tc;
-if (tp !== null) patch.targetProtein = tp;
+        if (tp !== null) patch.targetProtein = tp;
 
-patch.profile = {
-  startingWeight: profile.starting_weight !== null ? profile.starting_weight : useStore.getState().profile?.startingWeight ?? null,
-  currentWeight: profile.current_weight !== null ? profile.current_weight : useStore.getState().profile?.currentWeight ?? null,
-  targetWeight: profile.target_weight ?? null,
-  weeks: profile.weeks ?? null,
-};
+        patch.profile = {
+          startingWeight: profile.starting_weight !== null ? profile.starting_weight : useStore.getState().profile?.startingWeight ?? null,
+          currentWeight: profile.current_weight !== null ? profile.current_weight : useStore.getState().profile?.currentWeight ?? null,
+          targetWeight: profile.target_weight ?? null,
+          weeks: profile.weeks ?? null,
+        };
 
         const hidden = profile.hidden_foods;
         if (Array.isArray(hidden)) {
@@ -349,10 +349,11 @@ patch.profile = {
             })
             .eq("id", user.id);
 
-            if (profileErr) {
-              console.error("sync profiles:", profileErr.message);
-              alert("PROFILE SAVE FAILED: " + profileErr.message);
-            }        }
+          if (profileErr) {
+            console.error("sync profiles:", profileErr.message);
+            alert("PROFILE SAVE FAILED: " + profileErr.message);
+          }
+        }
 
         const logsToUpsert = Object.entries(state.logs).map(([date, log]) => ({
           user_id: user.id,
@@ -380,24 +381,7 @@ patch.profile = {
           if (error) console.error("sync weights:", error.message);
         }
 
-        const foodsToUpsert = state.customFoods.map((food) => ({
-          id: food.id,
-          user_id: user.id,
-          name: food.name,
-          unit: food.unit,
-          calories_per_100g: food.calories_per_100g ?? null,
-          protein_per_100g: food.protein_per_100g ?? null,
-          calories_per_unit: food.calories_per_unit ?? null,
-          protein_per_unit: food.protein_per_unit ?? null,
-          calories_per_100ml: food.calories_per_100ml ?? null,
-          protein_per_100ml: food.protein_per_100ml ?? null,
-        }));
-        if (foodsToUpsert.length > 0) {
-          const { error } = await supabase.from("foods").upsert(foodsToUpsert, {
-            onConflict: "user_id,name",
-          });
-          if (error) console.error("sync foods:", error.message);
-        }
+
 
         const expenseRows = Object.values(state.expenses)
           .flat()

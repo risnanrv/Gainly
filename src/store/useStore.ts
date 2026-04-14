@@ -136,9 +136,32 @@ export function mapFoodRow(row: Record<string, any>): FoodEntryDB {
 }
 
 export const useStore = create<AppState>()((set) => ({
+  isDataLoaded: false,
+  targetCalories: null,
+  targetProtein: null,
+  logs: {},
+  weightLogs: {},
+  expenses: {},
+  expenseCategories: defaultExpenseCategories(),
+  customFoods: [],
+  hiddenDefaultFoodNames: [],
+  profile: null,
+  auth: {
+    isAuthenticated: false,
+  },
+  reminders: {
+    dailySummary: false,
+  },
+  setTargets: (calories, protein) => set({ targetCalories: calories, targetProtein: protein }),
+  updateProfile: (updates) =>
+    set((state) => ({
+      profile: { ...(state.profile ?? emptyUserProfile()), ...updates },
+    })),
+  updateAuth: (updates) => set((state) => ({ auth: { ...state.auth, ...updates } })),
+  logout: () =>
+    set({
       isDataLoaded: false,
-      targetCalories: null,
-      targetProtein: null,
+      auth: { isAuthenticated: false },
       logs: {},
       weightLogs: {},
       expenses: {},
@@ -146,259 +169,244 @@ export const useStore = create<AppState>()((set) => ({
       customFoods: [],
       hiddenDefaultFoodNames: [],
       profile: null,
-      auth: {
-        isAuthenticated: false,
-      },
-      reminders: {
-        dailySummary: false,
-      },
-      setTargets: (calories, protein) => set({ targetCalories: calories, targetProtein: protein }),
-      updateProfile: (updates) =>
-        set((state) => ({
-          profile: { ...(state.profile ?? emptyUserProfile()), ...updates },
-        })),
-      updateAuth: (updates) => set((state) => ({ auth: { ...state.auth, ...updates } })),
-      logout: () =>
-        set({
-          isDataLoaded: false,
-          auth: { isAuthenticated: false },
-          logs: {},
-          weightLogs: {},
-          expenses: {},
-          expenseCategories: defaultExpenseCategories(),
-          customFoods: [],
-          hiddenDefaultFoodNames: [],
-          profile: null,
-          targetCalories: null,
-          targetProtein: null,
-          reminders: { dailySummary: false },
-        }),
-      clearData: () =>
-        set({
-          isDataLoaded: false,
-          logs: {},
-          weightLogs: {},
-          expenses: {},
-          expenseCategories: defaultExpenseCategories(),
-          customFoods: [],
-          hiddenDefaultFoodNames: [],
-          profile: null,
-          targetCalories: null,
-          targetProtein: null,
-          reminders: { dailySummary: false },
-        }),
-      updateReminders: (updates) =>
-        set((state) => ({ reminders: { ...state.reminders, ...updates } })),
+      targetCalories: null,
+      targetProtein: null,
+      reminders: { dailySummary: false },
+    }),
+  clearData: () =>
+    set({
+      isDataLoaded: false,
+      logs: {},
+      weightLogs: {},
+      expenses: {},
+      expenseCategories: defaultExpenseCategories(),
+      customFoods: [],
+      hiddenDefaultFoodNames: [],
+      profile: null,
+      targetCalories: null,
+      targetProtein: null,
+      reminders: { dailySummary: false },
+    }),
+  updateReminders: (updates) =>
+    set((state) => ({ reminders: { ...state.reminders, ...updates } })),
 
-      addCustomFood: (food) => {
-        void (async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-      
-          const { data, error } = await supabase
-            .from("foods")
-            .insert({
-              user_id: user.id,
-              name: food.name,
-              unit: food.unit,
-              calories_per_100g: food.calories_per_100g ?? null,
-              protein_per_100g: food.protein_per_100g ?? null,
-              calories_per_unit: food.calories_per_unit ?? null,
-              protein_per_unit: food.protein_per_unit ?? null,
-              calories_per_100ml: food.calories_per_100ml ?? null,
-              protein_per_100ml: food.protein_per_100ml ?? null,
-            })
-            .select()
-            .single();
-      
-          if (error) {
-            console.error("Add food error:", error.message);
-            return;
-          }
-      
-          set((state) => ({
-            customFoods: [...state.customFoods, mapFoodRow(data)],
-          }));
-        })();
-      },
-      updateCustomFood: (id, updates) => {
-        void (async () => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-      
-          const { data, error } = await supabase
-            .from("foods")
-            .update(updates)
-            .eq("id", id)
-            .eq("user_id", user.id)
-            .select()
-            .single();
-      
-          if (error) {
-            console.error("Update food error:", error.message);
-            return;
-          }
-      
-          set((state) => ({
-            customFoods: state.customFoods.map((f) =>
-              f.id === id ? mapFoodRow(data) : f
-            ),
-          }));
-        })();
-      },
-      deleteCustomFood: (id) => {
-        void (async () => {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          if (user) {
-            const { error } = await supabase.from("foods").delete().eq("id", id).eq("user_id", user.id);
-            if (error) console.error("deleteCustomFood:", error.message);
-          }
-        })();
-        set((state) => ({
-          customFoods: state.customFoods.filter((f) => f.id !== id),
-        }));
-      },
-      hideDefaultFood: (name) =>
-        set((state) => {
-          const key = name.trim().toLowerCase();
-          if (!key || state.hiddenDefaultFoodNames.includes(key)) return state;
-          return { hiddenDefaultFoodNames: [...state.hiddenDefaultFoodNames, key] };
-        }),
+  addCustomFood: (food) => {
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      addWeight: (date, weight) =>
-        set((state) => ({
-          weightLogs: { ...state.weightLogs, [date]: weight },
-          profile: { ...(state.profile ?? emptyUserProfile()), currentWeight: weight },
-        })),
-      addExpense: (date, entry) =>
-        set((state) => {
-          const dayExpenses = state.expenses[date] || [];
-          const newIdVal = newId();
-          return {
-            expenses: {
-              ...state.expenses,
-              [date]: [...dayExpenses, { ...entry, id: newIdVal, timestamp: Date.now(), date }],
-            },
-          };
-        }),
-      updateExpense: (date, id, updates) =>
-        set((state) => {
-          const dayExpenses = state.expenses[date] || [];
-          return {
-            expenses: {
-              ...state.expenses,
-              [date]: dayExpenses.map((e) => (e.id === id ? { ...e, ...updates } : e)),
-            },
-          };
-        }),
-      removeExpense: (date, id) => {
-        void (async () => {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          if (user) {
-            const { error } = await supabase.from("expenses").delete().eq("id", id).eq("user_id", user.id);
-            if (error) console.error("removeExpense:", error.message);
-          }
-        })();
-        set((state) => {
-          const dayExpenses = state.expenses[date] || [];
-          return {
-            expenses: {
-              ...state.expenses,
-              [date]: dayExpenses.filter((e) => e.id !== id),
-            },
-          };
-        });
-      },
-      addExpenseCategory: (name) => {
-        const trimmed = name.trim();
-        if (!trimmed) return;
-        void (async () => {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          if (user) {
-            const { data, error } = await supabase
-              .from("expense_categories")
-              .insert({ user_id: user.id, name: trimmed })
-              .select("id, name")
-              .single();
-            if (!error && data) {
-              set((state) => {
-                if (state.expenseCategories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
-                  return state;
-                }
-                return { expenseCategories: [...state.expenseCategories, { id: data.id, name: data.name }] };
-              });
-              return;
-            }
-            if (error) console.error("addExpenseCategory:", error.message);
-          }
+      const { data, error } = await supabase
+        .from("foods")
+        .insert({
+          user_id: user.id,
+          name: food.name,
+          unit: food.unit,
+          calories_per_100g: food.calories_per_100g ?? null,
+          protein_per_100g: food.protein_per_100g ?? null,
+          calories_per_unit: food.calories_per_unit ?? null,
+          protein_per_unit: food.protein_per_unit ?? null,
+          calories_per_100ml: food.calories_per_100ml ?? null,
+          protein_per_100ml: food.protein_per_100ml ?? null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Add food error:", error.message);
+        return;
+      }
+
+      // 🔥 IMPORTANT: REFETCH ALL FOODS (SOURCE OF TRUTH)
+      const { data: foods } = await supabase
+        .from("foods")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (foods) {
+        set({ customFoods: foods.map(mapFoodRow) });
+      }
+    })();
+  },
+  updateCustomFood: (id, updates) => {
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from("foods")
+        .update(updates)
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Update food error:", error.message);
+        return;
+      }
+
+      // 🔥 REFETCH
+      const { data: foods } = await supabase
+        .from("foods")
+        .select("*")
+        .eq("user_id", user.id);
+
+      if (foods) {
+        set({ customFoods: foods.map(mapFoodRow) });
+      }
+    })();
+  },
+  deleteCustomFood: (id) => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { error } = await supabase.from("foods").delete().eq("id", id).eq("user_id", user.id);
+        if (error) console.error("deleteCustomFood:", error.message);
+      }
+    })();
+    set((state) => ({
+      customFoods: state.customFoods.filter((f) => f.id !== id),
+    }));
+  },
+  hideDefaultFood: (name) =>
+    set((state) => {
+      const key = name.trim().toLowerCase();
+      if (!key || state.hiddenDefaultFoodNames.includes(key)) return state;
+      return { hiddenDefaultFoodNames: [...state.hiddenDefaultFoodNames, key] };
+    }),
+
+  addWeight: (date, weight) =>
+    set((state) => ({
+      weightLogs: { ...state.weightLogs, [date]: weight },
+      profile: { ...(state.profile ?? emptyUserProfile()), currentWeight: weight },
+    })),
+  addExpense: (date, entry) =>
+    set((state) => {
+      const dayExpenses = state.expenses[date] || [];
+      const newIdVal = newId();
+      return {
+        expenses: {
+          ...state.expenses,
+          [date]: [...dayExpenses, { ...entry, id: newIdVal, timestamp: Date.now(), date }],
+        },
+      };
+    }),
+  updateExpense: (date, id, updates) =>
+    set((state) => {
+      const dayExpenses = state.expenses[date] || [];
+      return {
+        expenses: {
+          ...state.expenses,
+          [date]: dayExpenses.map((e) => (e.id === id ? { ...e, ...updates } : e)),
+        },
+      };
+    }),
+  removeExpense: (date, id) => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { error } = await supabase.from("expenses").delete().eq("id", id).eq("user_id", user.id);
+        if (error) console.error("removeExpense:", error.message);
+      }
+    })();
+    set((state) => {
+      const dayExpenses = state.expenses[date] || [];
+      return {
+        expenses: {
+          ...state.expenses,
+          [date]: dayExpenses.filter((e) => e.id !== id),
+        },
+      };
+    });
+  },
+  addExpenseCategory: (name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from("expense_categories")
+          .insert({ user_id: user.id, name: trimmed })
+          .select("id, name")
+          .single();
+        if (!error && data) {
           set((state) => {
             if (state.expenseCategories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
               return state;
             }
-            return { expenseCategories: [...state.expenseCategories, { id: newId(), name: trimmed }] };
+            return { expenseCategories: [...state.expenseCategories, { id: data.id, name: data.name }] };
           });
-        })();
-      },
-      removeExpenseCategory: (id) => {
-        void (async () => {
-          const {
-            data: { user },
-          } = await supabase.auth.getUser();
-          if (user) {
-            const { error } = await supabase
-              .from("expense_categories")
-              .delete()
-              .eq("id", id)
-              .eq("user_id", user.id);
-            if (error) console.error("removeExpenseCategory:", error.message);
-          }
-        })();
-        set((state) => ({
-          expenseCategories: state.expenseCategories.filter((c) => c.id !== id),
-        }));
-      },
-      addFood: (date, entry) =>
-        set((state) => {
-          const currentDay = state.logs[date] || { totalCalories: 0, totalProtein: 0, entries: [] };
-          const newEntry: FoodEntry = {
-            ...entry,
-            id: newId(),
-            timestamp: Date.now(),
-          };
-          return {
-            logs: {
-              ...state.logs,
-              [date]: {
-                totalCalories: currentDay.totalCalories + entry.calories,
-                totalProtein: currentDay.totalProtein + entry.protein,
-                entries: [...currentDay.entries, newEntry],
-              },
-            },
-          };
-        }),
-      removeFood: (date, id) =>
-        set((state) => {
-          const currentDay = state.logs[date];
-          if (!currentDay) return state;
+          return;
+        }
+        if (error) console.error("addExpenseCategory:", error.message);
+      }
+      set((state) => {
+        if (state.expenseCategories.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
+          return state;
+        }
+        return { expenseCategories: [...state.expenseCategories, { id: newId(), name: trimmed }] };
+      });
+    })();
+  },
+  removeExpenseCategory: (id) => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { error } = await supabase
+          .from("expense_categories")
+          .delete()
+          .eq("id", id)
+          .eq("user_id", user.id);
+        if (error) console.error("removeExpenseCategory:", error.message);
+      }
+    })();
+    set((state) => ({
+      expenseCategories: state.expenseCategories.filter((c) => c.id !== id),
+    }));
+  },
+  addFood: (date, entry) =>
+    set((state) => {
+      const currentDay = state.logs[date] || { totalCalories: 0, totalProtein: 0, entries: [] };
+      const newEntry: FoodEntry = {
+        ...entry,
+        id: newId(),
+        timestamp: Date.now(),
+      };
+      return {
+        logs: {
+          ...state.logs,
+          [date]: {
+            totalCalories: currentDay.totalCalories + entry.calories,
+            totalProtein: currentDay.totalProtein + entry.protein,
+            entries: [...currentDay.entries, newEntry],
+          },
+        },
+      };
+    }),
+  removeFood: (date, id) =>
+    set((state) => {
+      const currentDay = state.logs[date];
+      if (!currentDay) return state;
 
-          const entryToRemove = currentDay.entries.find((e) => e.id === id);
-          if (!entryToRemove) return state;
+      const entryToRemove = currentDay.entries.find((e) => e.id === id);
+      if (!entryToRemove) return state;
 
-          return {
-            logs: {
-              ...state.logs,
-              [date]: {
-                totalCalories: currentDay.totalCalories - entryToRemove.calories,
-                totalProtein: currentDay.totalProtein - entryToRemove.protein,
-                entries: currentDay.entries.filter((e) => e.id !== id),
-              },
-            },
-          };
-        }),
+      return {
+        logs: {
+          ...state.logs,
+          [date]: {
+            totalCalories: currentDay.totalCalories - entryToRemove.calories,
+            totalProtein: currentDay.totalProtein - entryToRemove.protein,
+            entries: currentDay.entries.filter((e) => e.id !== id),
+          },
+        },
+      };
+    }),
 }));
