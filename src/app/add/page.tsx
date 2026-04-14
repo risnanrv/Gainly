@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Html5Qrcode } from "html5-qrcode";
+import { supabase } from "@/lib/supabase";
 
 // Clean Data Handling Structure
 interface ParsedFood {
@@ -476,19 +477,55 @@ function AddFoodContent() {
               )}
 
               <button
-                onClick={() => {
-                  if (selectedFood.isNewBarcode || (selectedFood.calories_per_100g === 0 && (selectedFood.protein_per_100g || 0) > 0) || (selectedFood.calories_per_100ml === 0 && (selectedFood.protein_per_100ml || 0) > 0)) {
-                    addCustomFood({
+                onClick={async () => {
+                  if (!selectedFood.name || validQuantity <= 0) return;
+
+                  let savedFood = null;
+
+                  // ✅ SAVE TO DB FIRST
+                  if (
+                    selectedFood.isNewBarcode ||
+                    selectedFood.calories_per_100g === 0 ||
+                    selectedFood.calories_per_100ml === 0
+                  ) {
+                    const { data: { user } } = await supabase.auth.getUser();
+
+                    if (!user) {
+                      toast.error("User not authenticated");
+                      return;
+                    }
+
+                    const newFood = {
                       name: selectedFood.name || "Custom Food",
                       unit: selectedFood.unit,
-                      calories_per_100g: selectedFood.calories_per_100g || 0,
-                      protein_per_100g: selectedFood.protein_per_100g || 0,
-                      calories_per_unit: selectedFood.calories_per_unit,
-                      protein_per_unit: selectedFood.protein_per_unit,
-                      calories_per_100ml: selectedFood.calories_per_100ml,
-                      protein_per_100ml: selectedFood.protein_per_100ml
-                    });
+                      calories_per_100g: selectedFood.calories_per_100g || null,
+                      protein_per_100g: selectedFood.protein_per_100g || null,
+                      calories_per_unit: selectedFood.calories_per_unit || null,
+                      protein_per_unit: selectedFood.protein_per_unit || null,
+                      calories_per_100ml: selectedFood.calories_per_100ml || null,
+                      protein_per_100ml: selectedFood.protein_per_100ml || null,
+                      user_id: user.id,
+                    };
+
+                    const { data, error } = await supabase
+                      .from("foods")
+                      .insert(newFood)
+                      .select()
+                      .single();
+
+                    if (error) {
+                      console.error("Food save error:", error.message);
+                      toast.error("Failed to save food");
+                      return;
+                    }
+
+                    savedFood = data;
+
+                    // ✅ UPDATE STORE AFTER DB SUCCESS
+                    addCustomFood(savedFood);
                   }
+
+                  // ✅ LOG FOOD (this was already correct)
                   handleAdd();
                 }}
                 disabled={validQuantity <= 0 || !selectedFood.name}
