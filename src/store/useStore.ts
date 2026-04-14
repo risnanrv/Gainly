@@ -119,6 +119,22 @@ const defaultExpenseCategories = (): ExpenseCategory[] => [
   { id: "00000000-0000-4000-8000-000000000002", name: "Diet Foods" },
 ];
 
+export function mapFoodRow(row: Record<string, any>): FoodEntryDB {
+  const created = row.created_at ? new Date(String(row.created_at)).getTime() : Date.now();
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    unit: (row.unit === "count" || row.unit === "ml" || row.unit === "grams" ? row.unit : "grams") as FoodEntryDB["unit"],
+    calories_per_100g: row.calories_per_100g != null ? Number(row.calories_per_100g) : undefined,
+    protein_per_100g: row.protein_per_100g != null ? Number(row.protein_per_100g) : undefined,
+    calories_per_unit: row.calories_per_unit != null ? Number(row.calories_per_unit) : undefined,
+    protein_per_unit: row.protein_per_unit != null ? Number(row.protein_per_unit) : undefined,
+    calories_per_100ml: row.calories_per_100ml != null ? Number(row.calories_per_100ml) : undefined,
+    protein_per_100ml: row.protein_per_100ml != null ? Number(row.protein_per_100ml) : undefined,
+    timestamp: created,
+  };
+}
+
 export const useStore = create<AppState>()((set) => ({
       isDataLoaded: false,
       targetCalories: null,
@@ -185,23 +201,23 @@ export const useStore = create<AppState>()((set) => ({
               user_id: user.id,
               name: food.name,
               unit: food.unit,
-              calories_per_100g: food.calories_per_100g || null,
-              protein_per_100g: food.protein_per_100g || null,
-              calories_per_unit: food.calories_per_unit || null,
-              protein_per_unit: food.protein_per_unit || null,
-              calories_per_100ml: food.calories_per_100ml || null,
-              protein_per_100ml: food.protein_per_100ml || null,
+              calories_per_100g: food.calories_per_100g ?? null,
+              protein_per_100g: food.protein_per_100g ?? null,
+              calories_per_unit: food.calories_per_unit ?? null,
+              protein_per_unit: food.protein_per_unit ?? null,
+              calories_per_100ml: food.calories_per_100ml ?? null,
+              protein_per_100ml: food.protein_per_100ml ?? null,
             })
             .select()
             .single();
       
           if (error) {
-            console.error("addCustomFood:", error.message);
+            console.error("Add food error:", error.message);
             return;
           }
       
           set((state) => ({
-            customFoods: [...state.customFoods, data],
+            customFoods: [...state.customFoods, mapFoodRow(data)],
           }));
         })();
       },
@@ -210,20 +226,22 @@ export const useStore = create<AppState>()((set) => ({
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) return;
       
-          const { error } = await supabase
+          const { data, error } = await supabase
             .from("foods")
             .update(updates)
             .eq("id", id)
-            .eq("user_id", user.id);
+            .eq("user_id", user.id)
+            .select()
+            .single();
       
           if (error) {
-            console.error("updateCustomFood:", error.message);
+            console.error("Update food error:", error.message);
             return;
           }
       
           set((state) => ({
             customFoods: state.customFoods.map((f) =>
-              f.id === id ? { ...f, ...updates } : f
+              f.id === id ? mapFoodRow(data) : f
             ),
           }));
         })();
