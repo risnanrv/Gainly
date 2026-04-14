@@ -396,11 +396,35 @@ export default function AuthWrapper({ children }: { children: React.ReactNode })
           const { error } = await supabase.from("expenses").upsert(expenseRows, { onConflict: "id" });
           if (error) console.error("sync expenses:", error.message);
         }
+        // ✅ FIX: Sync custom foods to Supabase
+        const foodRows = state.customFoods.map((food) => ({
+          id: food.id,
+          user_id: user.id,
+          name: food.name,
+          unit: food.unit,
+          calories_per_100g: food.calories_per_100g ?? null,
+          protein_per_100g: food.protein_per_100g ?? null,
+          calories_per_unit: food.calories_per_unit ?? null,
+          protein_per_unit: food.protein_per_unit ?? null,
+          calories_per_100ml: food.calories_per_100ml ?? null,
+          protein_per_100ml: food.protein_per_100ml ?? null,
+        }));
+
+        if (foodRows.length > 0) {
+          const { error } = await supabase
+            .from("foods")
+            .upsert(foodRows, { onConflict: "id" });
+
+          if (error) console.error("sync foods:", error.message);
+        }
+
       }, 2000);
     });
 
+
     return () => unsub();
   }, [mounted, initializing, auth.isAuthenticated, isDataLoaded]);
+
 
   useEffect(() => {
     if (!mounted || initializing) return;
